@@ -1,0 +1,18 @@
+{
+  "name": "smith-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Smith Agent MVP: a LINE bot that quotes a price before it starts, runs a web task with Claude, and sends the result with evidence. No charge when it fails.",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "stats": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli.js stats"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0"
+  }
+}
