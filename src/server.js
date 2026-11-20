@@ -1,46 +1,29 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { config } from "./config.js";
 import { openDb, makeStore } from "./db.js";
 import { verifySignature, lineClient } from "./line.js";
 import { quote, runTask } from "./agent.js";
 import { screenshot } from "./evidence.js";
+import { createRunner } from "./runner.js";
 import { createBot } from "./bot.js";
-
-if (!config.lineSecret || !config.lineToken) {
-  console.error("Set LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN (see .env.example).");
-  process.exit(1);
-}
+import { createWeb } from "./web.js";
 
 const store = makeStore(openDb(config.dbPath), config);
-const bot = createBot({
-  store,
-  line: lineClient(config.lineToken),
-  quote,
-  runTask,
-  screenshot,
-  publicUrl: config.publicUrl,
-  evidenceDir: config.evidenceDir,
-});
+const runner = createRunner({ store, runTask, screenshot, evidenceDir: config.evidenceDir });
+const web = createWeb({ store, quote, runner, evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour });
+const bot = config.lineSecret && config.lineToken
+  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl })
+  : null;
 
-const send = (res, status, body = "", type = "text/plain") => {
-  res.writeHead(status, { "Content-Type": type });
+if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");
+if (!bot) console.log("LINE is off (LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN not set): serving the web app only.");
+
+const send = (res, status, body = "") => {
+  res.writeHead(status, { "Content-Type": "text/plain" });
   res.end(body);
 };
 
-const server = createServer(async (req, res) => {
-  if (req.method === "GET" && req.url === "/") return send(res, 200, "ok");
-  const evidence = req.method === "GET" && /^\/evidence\/(\d+)\.png$/.exec(req.url);
-  if (evidence) {
-    try {
-      return send(res, 200, await readFile(join(config.evidenceDir, `${evidence[1]}.png`)), "image/png");
-    } catch {
-      return send(res, 404);
-    }
-  }
-  if (req.method !== "POST" || req.url !== "/webhook") return send(res, 404);
-
+async function lineWebhook(req, res) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -58,7 +41,20 @@ const server = createServer(async (req, res) => {
     return;
   }
   for (const e of events) bot.handle(e).catch((err) => console.error("event failed", err));
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    if (req.method === "GET" && req.url === "/healthz") return send(res, 200, "ok");
+    if (req.method === "POST" && req.url === "/webhook") return bot ? await lineWebhook(req, res) : send(res, 404);
+    if (await web(req, res)) return;
+    send(res, 404);
+  } catch (err) {
+    console.error("request failed", err);
+    if (!res.headersSent) send(res, 500);
+  }
 });
 
-await bot.recover();
-server.listen(config.port, () => console.log(`Smith Agent listening on :${config.port}`));
+const cutShort = runner.recover();
+if (bot) await bot.notifyRestart(cutShort);
+server.listen(config.port, () => console.log(`Smith Agent on http://localhost:${config.port}`));

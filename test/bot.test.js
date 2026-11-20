@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { openDb, makeStore } from "../src/db.js";
 import { createBot } from "../src/bot.js";
+import { createRunner } from "../src/runner.js";
 
 const QUOTE_M = { doable: true, reason: "", title: "หาตั๋วไปเชียงใหม่", steps: ["เปิดเว็บสายการบิน", "เทียบราคา"], size: "M", cost: 0.3 };
 const RESULT = {
@@ -18,8 +19,9 @@ function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, cloc
     reply: async (token, messages) => sent.push({ to: "reply", messages }),
     push: async (to, messages) => sent.push({ to, messages }),
   };
-  const bot = createBot({ store, line, quote, runTask, screenshot: async () => false, log: { error() {} } });
-  return { store, bot, sent, later: (hours) => (t += hours * 3600e3) };
+  const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
+  const bot = createBot({ store, line, quote, runner, log: { error() {} } });
+  return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
 const tap = (userId, data) => ({ type: "postback", replyToken: "r", source: { type: "user", userId }, postback: { data } });
@@ -138,12 +140,12 @@ test("a failed job has nothing to refund", async () => {
 });
 
 test("after a restart, jobs left running are failed and paid back", async () => {
-  const { store, bot, sent } = setup();
+  const { store, bot, runner, sent } = setup();
   store.user("u1");
   store.addQuote("u1", "หาตั๋ว", QUOTE_M);
   assert.equal(store.start("u1", 1).ok, true);
   assert.equal(store.user("u1").credit, 11);
-  await bot.recover();
+  await bot.notifyRestart(runner.recover());
   assert.equal(store.job(1).status, "failed");
   assert.equal(store.user("u1").credit, 20);
   assert.match(lastText(sent), /ระบบรีสตาร์ต/);

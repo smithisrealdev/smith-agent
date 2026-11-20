@@ -72,8 +72,9 @@ export async function screenshot(url, file) {
     if (!allowed.has(key)) allowed.set(key, reachesPublicHost(requestUrl));
     return allowed.get(key);
   };
-  const browser = await chromium.launch();
+  let browser;
   try {
+    browser = await chromium.launch(); // throws when the Chromium binary is not installed
     const page = await browser.newPage({ viewport: { width: 1000, height: 1300 }, locale: "th-TH" });
     await page.route("**/*", async (route) => ((await check(route.request().url())) ? route.continue() : route.abort()));
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
@@ -84,6 +85,6 @@ export async function screenshot(url, file) {
     console.warn("screenshot failed", url, err.message);
     return false;
   } finally {
-    await browser.close();
+    await browser?.close();
   }
 }

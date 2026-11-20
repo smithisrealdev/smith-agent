@@ -11,6 +11,8 @@ export const config = {
   model: env.SMITH_MODEL || "claude-opus-5-5",
   startCredit: Number(env.START_CREDIT || 20), // "first job free, up to ฿20" from the design
   usdThb: Number(env.USD_THB || 36),
+  inviteCode: env.WEB_INVITE_CODE || "", // set it before the web app is reachable from the internet
+  quotesPerHour: Number(env.QUOTES_PER_HOUR || 30), // per user; every quote is a paid Claude call
 };
 
 // The price the user sees before a job starts, and the work budget that price buys.

@@ -19,7 +19,8 @@ export function openDb(path) {
       created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT,
       quote_cost REAL NOT NULL DEFAULT 0, run_cost REAL NOT NULL DEFAULT 0, -- THB actually spent on Claude
       input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, searches INTEGER NOT NULL DEFAULT 0,
-      answer TEXT, sources TEXT, evidence TEXT, error TEXT
+      answer TEXT, sources TEXT, evidence TEXT, error TEXT,
+      refund_reason TEXT -- what the user said was wrong, to improve the agent
     );
     CREATE TABLE IF NOT EXISTS ledger (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,7 +115,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     },
 
     // "Wrong result" refund: automatic within the window up to the monthly cap, otherwise queued for a person.
-    refund(userId, jobId) {
+    refund(userId, jobId, reason = "") {
       return tx(() => {
         const j = one("SELECT * FROM jobs WHERE id = ? AND user_id = ?", jobId, userId);
         if (!j) return { result: "not_found" };
@@ -124,10 +125,10 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         const month = iso().slice(0, 7);
         const used = one("SELECT COUNT(*) AS n FROM ledger WHERE user_id = ? AND kind = 'refund' AND created_at >= ?", userId, month).n;
         if (used >= REFUND.autoPerMonth) {
-          run("UPDATE jobs SET status = 'refund_review' WHERE id = ?", jobId);
+          run("UPDATE jobs SET status = 'refund_review', refund_reason = ? WHERE id = ?", reason, jobId);
           return { result: "review", job: job(jobId) };
         }
-        run("UPDATE jobs SET status = 'refunded' WHERE id = ?", jobId);
+        run("UPDATE jobs SET status = 'refunded', refund_reason = ? WHERE id = ?", reason, jobId);
         move(userId, j.price, "refund", jobId);
         return { result: "refunded", job: job(jobId) };
       });
@@ -151,5 +152,20 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     },
 
     running: () => db.prepare("SELECT * FROM jobs WHERE status = 'running'").all(),
+    jobsOf: (userId, limit = 50) => db.prepare("SELECT * FROM jobs WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit),
+    ledgerOf: (userId, limit = 50) =>
+      db.prepare("SELECT l.amount, l.kind, l.created_at, j.title FROM ledger l LEFT JOIN jobs j ON j.id = l.job_id WHERE l.user_id = ? ORDER BY l.id DESC LIMIT ?").all(userId, limit),
+    quotesSince: (userId, since) => one("SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND created_at >= ?", userId, since).n,
+
+    // PDPA: delete everything about a user. Returns their evidence files so those can go too.
+    deleteUser(userId) {
+      return tx(() => {
+        const files = db.prepare("SELECT evidence FROM jobs WHERE user_id = ? AND evidence != ''").all(userId).map((r) => r.evidence);
+        run("DELETE FROM jobs WHERE user_id = ?", userId);
+        run("DELETE FROM ledger WHERE user_id = ?", userId);
+        run("DELETE FROM users WHERE id = ?", userId);
+        return files;
+      });
+    },
   };
 }

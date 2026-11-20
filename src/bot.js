@@ -1,5 +1,3 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { SIZES } from "./config.js";
 import { text, postback, image } from "./line.js";
 
@@ -16,7 +14,7 @@ const welcome = (credit) =>
     `เครดิตเริ่มต้นของคุณ ${baht(credit)} · พิมพ์ "เครดิต" เพื่อดูยอด`,
   ].join("\n");
 
-export function createBot({ store, line, quote, runTask, screenshot, publicUrl = "", evidenceDir = "data/evidence", log = console }) {
+export function createBot({ store, line, quote, runner, publicUrl = "", log = console }) {
   async function onText(userId, replyToken, msg) {
     const user = store.user(userId);
     if (msg.trim() === "เครดิต") {
@@ -68,21 +66,10 @@ export function createBot({ store, line, quote, runTask, screenshot, publicUrl =
 
   // Run the agent and report back by push: the reply token has expired by the time the work is done.
   async function work(job) {
-    let r;
-    try {
-      r = await runTask(job);
-    } catch (err) {
-      log.error("run failed", job.id, err);
-      r = { ok: false, error: String(err?.message || err), summary: "ระบบขัดข้องระหว่างทำงาน", sources: [] };
-    }
-    if (r.ok && r.bestUrl && publicUrl) {
-      mkdirSync(evidenceDir, { recursive: true });
-      if (await screenshot(r.bestUrl, join(evidenceDir, `${job.id}.png`))) r.evidence = `${publicUrl}/evidence/${job.id}.png`;
-    }
-    const done = store.finish(job.id, r);
+    const { job: done, r } = await runner.run(job);
     const credit = baht(store.user(job.user_id).credit);
     if (!r.ok) {
-      return line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\n${r.summary || "Smith หาคำตอบที่เชื่อถือได้ไม่เจอ"}\nเครดิตเท่าเดิม ${credit}`)]);
+      return line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\n${r.answer}\nเครดิตเท่าเดิม ${credit}`)]);
     }
     const sources = r.sources.map((s, i) => `${i + 1}. ${s.title}\n${s.url}`);
     const result = [
@@ -91,7 +78,7 @@ export function createBot({ store, line, quote, runTask, screenshot, publicUrl =
     ].join("\n");
     // The quick reply shows only on the last message, so the screenshot goes first.
     const messages = [text(result, [postback("ผลไม่ตรง ขอเงินคืน", `refund:${job.id}`)])];
-    if (r.evidence) messages.unshift(image(r.evidence));
+    if (r.evidence && publicUrl) messages.unshift(image(publicUrl + r.evidence)); // LINE needs an absolute https URL
     return line.push(job.user_id, messages);
   }
 
@@ -110,13 +97,12 @@ export function createBot({ store, line, quote, runTask, screenshot, publicUrl =
     }
   }
 
-  // Jobs still "running" after a restart will never finish: give the credit back and tell the user.
-  async function recover() {
-    for (const job of store.running()) {
-      store.finish(job.id, { ok: false, error: "restart" });
-      await line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\nระบบรีสตาร์ตระหว่างทำงาน ลองสั่งใหม่ได้เลย`)]).catch((err) => log.error("recover push failed", err));
+  // Tell LINE users whose job was cut short by a restart (the runner has already paid them back).
+  async function notifyRestart(jobs) {
+    for (const job of jobs.filter((j) => !j.user_id.startsWith("web:"))) {
+      await line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\nระบบรีสตาร์ตระหว่างทำงาน ลองสั่งใหม่ได้เลย`)]).catch((err) => log.error("restart notice failed", err));
     }
   }
 
-  return { handle, work, recover };
+  return { handle, work, notifyRestart };
 }
