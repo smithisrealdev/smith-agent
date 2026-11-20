@@ -11,7 +11,7 @@ const TYPES = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
 };
-const APP_FILES = new Set(["index.html", "app.js", "app.css", "manifest.webmanifest", "icon.svg"]);
+const APP_FILES = new Set(["index.html", "app.js", "app.css", "mascots.js", "manifest.webmanifest", "icon.svg", "icon-180.png"]);
 
 // What the app sees of a job: never the raw row, so costs, tokens and internal errors stay on the server.
 export function jobView(j) {
