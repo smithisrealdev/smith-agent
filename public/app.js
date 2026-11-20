@@ -292,7 +292,7 @@
       ${j.status === "refund_review" ? `<div class="note warn">${I.clock}<span>ทีมงานกำลังตรวจคำขอคืนเงิน ภายใน 1 วันทำการ</span></div>` : ""}
       <div class="card pad pre" style="font-size:16px;line-height:1.6">${esc(j.answer)}</div>
       <div class="sect">หลักฐานที่ตรวจเองได้</div>
-      ${/^\/evidence\/[\w-]+\.png$/.test(j.evidence) ? `<img class="evidence-img" src="${esc(j.evidence)}" alt="ภาพหน้าจอเว็บที่ Smith ใช้เป็นหลักฐาน">` : ""}
+      ${/^\/evidence\/[\w-]+\.png$/.test(j.evidence) ? `<a href="${esc(j.evidence)}" target="_blank" rel="noopener"><img class="evidence-img" src="${esc(j.evidence)}" alt="ภาพหน้าจอเว็บที่ Smith ใช้เป็นหลักฐาน แตะเพื่อดูภาพเต็ม"></a>` : ""}
       ${j.sources.length ? `<div class="card list">${j.sources.map(sourceRow).join("")}</div>` : '<p class="small muted" style="padding:0 4px">งานนี้ไม่มีลิงก์อ้างอิง</p>'}
       <div class="card list">
         <div class="item"><span class="grow muted">จ่ายจริง</span><span class="money">${j.status === "refunded" ? baht(0) : baht(j.price)}</span></div>
