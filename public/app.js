@@ -179,6 +179,7 @@
         <p class="muted">ช่วงทดลอง Smith เปิดให้เฉพาะคนที่ได้รับรหัสจากทีมงาน</p></div>
       <label class="sr" for="invite">รหัสเชิญ</label>
       <input id="invite" class="field" autocomplete="off" autocapitalize="off" placeholder="รหัสเชิญ" value="${esc(saved.get("invite") || "")}">
+      ${saved.get("invite") ? '<p role="alert" class="small" style="color:var(--rtxt);padding:0 4px">รหัสนี้ใช้ไม่ได้ ลองเช็กกับทีมงานอีกครั้ง</p>' : ""}
       <div class="grow"></div>
       <button class="btn" data-act="invite">ไปต่อ</button>`);
   }
