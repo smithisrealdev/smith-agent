@@ -101,6 +101,7 @@ export function createBot({ store, line, quote, runTask, screenshot, publicUrl =
     if (!userId) return;
     try {
       if (e.type === "message" && e.message?.type === "text") return await onText(userId, e.replyToken, e.message.text);
+      if (e.type === "message") return await line.reply(e.replyToken, [text("ตอนนี้ Smith อ่านได้เฉพาะข้อความ พิมพ์งานที่อยากให้ทำมาได้เลยครับ")]);
       if (e.type === "postback") return await onPostback(userId, e.replyToken, e.postback?.data || "");
       if (e.type === "follow") return await line.reply(e.replyToken, [text(welcome(store.user(userId).credit))]);
     } catch (err) {

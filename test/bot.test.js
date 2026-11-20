@@ -170,3 +170,11 @@ test("group chats are ignored, so nobody pays for quotes there", async () => {
   assert.equal(quotes, 0);
   assert.equal(sent.length, 0);
 });
+
+test("stickers and photos get a hint instead of silence, and cost nothing", async () => {
+  let quotes = 0;
+  const { bot, sent } = setup({ quote: async () => { quotes++; return QUOTE_M; } });
+  await bot.handle({ type: "message", replyToken: "r", source: { type: "user", userId: "u1" }, message: { type: "sticker", packageId: "1", stickerId: "1" } });
+  assert.match(lastText(sent), /อ่านได้เฉพาะข้อความ/);
+  assert.equal(quotes, 0);
+});
