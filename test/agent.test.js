@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costThb, quote, runTask, stepOf } from "../src/agent.js";
+import { costThb, quote, runTask, stepOf, cleanCodes } from "../src/agent.js";
 
 // A stand-in for the SDK client that returns canned responses and records each request.
 function fakeClient(...responses) {
@@ -145,4 +145,42 @@ test("options come back as at most 3 cards, and a bad link is dropped from its c
   assert.deepEqual(r.options.map((o) => [o.name, o.url]), [["A", "https://www.a.example/x"], ["B", ""], ["C", "https://travel.example/c"]]);
   assert.deepEqual(r.options.map((o) => o.brand), ["a.example", "", "airasia.com"], "the logo is the brand's when the agent names it, else the page's site");
   assert.equal("brand_site" in r.options[0], false);
+});
+
+test("what the agent opened is counted from the stream: pages read, sites read, and sites it could not read", async () => {
+  const fetch = (id, url) => ({ type: "server_tool_use", id, name: "web_fetch", input: { url } });
+  const result = (id, content) => ({ type: "web_fetch_tool_result", tool_use_id: id, content });
+  const paused = {
+    model: "claude-opus-5-5", stop_reason: "pause_turn", usage: usage({ server_tool_use: { web_search_requests: 3 } }),
+    content: [
+      fetch("f1", "https://www.shop-a.example/p/1"), result("f1", { type: "web_fetch_result", url: "x" }),
+      fetch("f2", "https://shop-a.example/p/2"), result("f2", { type: "web_fetch_result", url: "x" }),
+      fetch("f3", "https://shopee.example/item"), result("f3", { type: "web_fetch_tool_error", error_code: "url_not_accessible" }),
+      fetch("f4", "https://mixed.example/a"), result("f4", { type: "web_fetch_tool_error", error_code: "unavailable" }),
+      fetch("f5", "https://mixed.example/b"), result("f5", { type: "web_fetch_result", url: "x" }),
+    ],
+  };
+  const report = { model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [] })] };
+  const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(paused, report));
+  assert.deepEqual(r.coverage, { searches: 3, pages: 3, hosts: ["shop-a.example", "mixed.example"], blocked: ["shopee.example"] }, "a site read at least once is not listed as unreadable");
+  const silent = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient({ model: "claude-opus-5-5", stop_reason: "end_turn", usage: usage(), content: [fetch("f1", "https://shopee.example/x"), result("f1", { type: "web_fetch_tool_error" })] }));
+  assert.equal(silent.ok, false);
+  assert.deepEqual(silent.coverage.blocked, ["shopee.example"], "a job that fails still tells which site was out of reach");
+});
+
+test("a discount code is kept only if it looks like one and names the page where it was seen", () => {
+  const c = (code, url = "https://shop.example/promo", extra = {}) => ({ code, shop: "ร้าน A", note: "ลด 10%", url, ...extra });
+  const got = cleanCodes([
+    c("SAVE10"), c("save10"), c("ใช้โค้ด SAVE20"), c("AB"), c("X".repeat(33)), c("NOLINK", ""), c("BADLINK", "javascript:alert(1)"),
+    c("WELCOME_5"), c("ลด50", "https://shop.example/x"), c("FOUR4"), c("FIVE5"),
+  ]);
+  assert.deepEqual(got.map((x) => x.code), ["SAVE10", "WELCOME_5", "ลด50"], "no repeats, no spaces, no code without a page, at most 3");
+  assert.deepEqual(cleanCodes(undefined), []);
+  assert.deepEqual(cleanCodes([{ code: "SAVE10", url: "https://a.example", shop: "S".repeat(100), note: "n".repeat(300) }])[0].shop.length, 60);
+});
+
+test("runTask returns the cleaned codes from the report", async () => {
+  const report = { model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [{ code: "SAVE10", shop: "ร้าน A", note: "ลด 10%", url: "https://a.example/promo" }, { code: "bad code", shop: "", note: "", url: "https://a.example" }] })] };
+  const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(report));
+  assert.deepEqual(r.codes.map((c) => c.code), ["SAVE10"]);
 });

@@ -46,6 +46,7 @@ When you finish, or if you cannot finish, call the report tool once:
 - options: when the task finds or compares choices, up to 3 of them, best first: name, price in baht as written on the page (or an empty string), a short Thai note, the URL of the page that shows it, and brand_site. Otherwise an empty list.
 - brand_site: the main website domain of the brand or seller the option belongs to, such as airasia.com for an AirAsia flight found on a travel site, or lazada.co.th for a Lazada listing. An empty string when you are not sure.
 - summary: one Thai sentence on what you found, or on why you could not finish.
+- codes: discount codes for the shops in your options. Only codes you actually saw written on a page you read; never guess or invent one. Up to 3, each with the shop's name, a short Thai note on what it gives and any minimum spend, and the URL of the page where you saw it. Look for codes with at most one search, after the main answer is settled. An empty list when you found none.
 - sources: up to 5 pages you used, with their URLs.
 - best_url: the one page that best shows the answer, or an empty string.`;
 
@@ -78,8 +79,17 @@ const REPORT_TOOL = {
           additionalProperties: false,
         },
       },
+      codes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { code: { type: "string" }, shop: { type: "string" }, note: { type: "string" }, url: { type: "string" } },
+          required: ["code", "shop", "note", "url"],
+          additionalProperties: false,
+        },
+      },
     },
-    required: ["ok", "answer", "summary", "sources", "best_url", "options"],
+    required: ["ok", "answer", "summary", "sources", "best_url", "options", "codes"],
     additionalProperties: false,
   },
 };
@@ -105,6 +115,20 @@ const hostOf = (u) => {
     return "";
   }
 };
+
+// Codes the agent says it saw. A code is kept only if it looks like one (no spaces: the model sometimes writes "ใช้โค้ด X")
+// and names the page where it was seen, so the user can check it. At most 3, no repeats.
+export function cleanCodes(list) {
+  const seen = new Set();
+  const out = [];
+  for (const c of Array.isArray(list) ? list : []) {
+    const code = String(c?.code ?? "").trim();
+    if (!/^[A-Za-z0-9ก-๙_-]{3,32}$/.test(code) || !isWebUrl(c.url) || seen.has(code.toLowerCase())) continue;
+    seen.add(code.toLowerCase());
+    out.push({ code, shop: String(c.shop ?? "").trim().slice(0, 60), note: String(c.note ?? "").trim().slice(0, 120), url: c.url });
+  }
+  return out.slice(0, 3);
+}
 
 // What the user sees while the agent works: one line per finished search, page read, or the final report.
 export function stepOf(block) {
@@ -148,11 +172,24 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
     messages: [{ role: "user", content: `วันนี้ ${date} (เวลาไทย)\nงาน: ${job.text}\nแผน:\n${steps}` }],
   };
   const usage = { cost: 0, input_tokens: 0, output_tokens: 0, searches: 0 };
+  // What the agent actually opened, counted from the stream rather than taken from what the model says about itself.
+  const fetching = new Map(); // tool_use id -> host, until its result arrives
+  const read = new Set();
+  const blocked = new Set();
+  let pages = 0;
+  const coverage = () => ({ searches: usage.searches, pages, hosts: [...read].slice(0, 8), blocked: [...blocked].filter((h) => !read.has(h)).slice(0, 5) });
   for (let turn = 0; turn < 5; turn++) {
     // Streamed so each search and page read can be shown while the job runs. The report tool's input stays
     // buffered (no eager_input_streaming): it is small, and buffering keeps the strict schema check.
     const stream = client.beta.messages.stream(params);
     stream.on("contentBlock", (block) => {
+      if (block.type === "server_tool_use" && block.name === "web_fetch" && hostOf(block.input?.url)) fetching.set(block.id, hostOf(block.input.url));
+      else if (fetching.has(block.tool_use_id)) {
+        // shortcut: a failed page read is recognised by an "error" in the result's type or an error_code; confirm the exact shape against a real run
+        const host = fetching.get(block.tool_use_id);
+        if (/error/i.test(block.content?.type || "") || block.content?.error_code) blocked.add(host);
+        else (read.add(host), pages++);
+      }
       const step = stepOf(block);
       if (step) onProgress(step, block.name === "web_fetch" ? block.input.url : ""); // the page, so the step can show that site's logo
     });
@@ -167,7 +204,7 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
       continue;
     }
     const r = toolInput(res, "report");
-    if (!r) return { ok: false, error: `no report (${res.stop_reason})`, summary: "", sources: [], usage };
+    if (!r) return { ok: false, error: `no report (${res.stop_reason})`, summary: "", sources: [], usage, coverage: coverage() };
     return {
       ok: r.ok === true,
       answer: r.answer,
@@ -175,6 +212,8 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
       sources: r.sources.filter((s) => isWebUrl(s.url)).slice(0, 5),
       bestUrl: isWebUrl(r.best_url) ? r.best_url : "",
       // brand: the site whose logo the card shows, the brand's own when the agent named one, else the page's.
+      codes: cleanCodes(r.codes),
+      coverage: coverage(),
       options: (r.options || []).slice(0, 3).map(({ brand_site, ...o }) => {
         const url = isWebUrl(o.url) ? o.url : "";
         return { ...o, url, brand: logoHost(`https://${brand_site}`) || logoHost(url) };
@@ -183,5 +222,5 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
       usage,
     };
   }
-  return { ok: false, error: "too many pauses", summary: "", sources: [], usage };
+  return { ok: false, error: "too many pauses", summary: "", sources: [], usage, coverage: coverage() };
 }

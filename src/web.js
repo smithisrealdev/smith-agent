@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { join, extname, basename } from "node:path";
-import { SIZES } from "./config.js";
+import { SIZES, REFUND } from "./config.js";
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -29,6 +29,8 @@ export function jobView(j) {
     answer: j.answer || "",
     sources: JSON.parse(j.sources || "[]"),
     options: JSON.parse(j.options || "[]"),
+    codes: JSON.parse(j.codes || "[]"),
+    coverage: j.coverage ? JSON.parse(j.coverage) : null,
     evidence: j.evidence || "",
     createdAt: j.created_at,
     startedAt: j.started_at,
@@ -127,7 +129,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
       if (m[2] === "cancel") return json(res, 200, { ok: store.cancel(userId, id) });
       const { reasons = [], note = "" } = await body(req);
       const why = [...(Array.isArray(reasons) ? reasons : []), note].map((s) => String(s).trim()).filter(Boolean).join(" · ").slice(0, 500);
-      const r = store.refund(userId, id, why);
+      const r = store.refund(userId, id, why, { price: Array.isArray(reasons) && reasons.includes(REFUND.priceReason) });
       return json(res, 200, { result: r.result, job: r.job ? jobView(store.job(id)) : null, credit: credit(userId) });
     }
 

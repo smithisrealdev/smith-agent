@@ -1,8 +1,15 @@
-import { SIZES } from "./config.js";
+import { SIZES, REFUND } from "./config.js";
 import { text, postback, image, optionCards } from "./line.js";
 
 const baht = (n) => `฿${n}`;
 const clock = () => new Date().toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
+// What the agent opened, in one or two lines. Nothing for jobs from before this was recorded.
+const coverageText = (c) => {
+  if (!c || (!c.searches && !c.pages)) return "";
+  const lines = [`อ่านเว็บ: ค้น ${c.searches} ครั้ง · อ่าน ${c.pages} หน้า จาก ${c.hosts.length} เว็บ`];
+  if (c.blocked?.length) lines.push(`อ่านไม่ได้: ${c.blocked.join(", ")} (ราคาจากเว็บนี้อาจไม่อยู่ในผล)`);
+  return lines.join("\n");
+};
 
 const welcome = (credit) =>
   [
@@ -34,7 +41,7 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
   }
 
   async function onPostback(userId, replyToken, data) {
-    const [action, raw] = data.split(":");
+    const [action, raw, kind] = data.split(":");
     const id = Number(raw);
     if (action === "start") {
       const r = store.start(userId, id);
@@ -51,10 +58,11 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
       return line.reply(replyToken, [text(store.cancel(userId, id) ? "ยกเลิกแล้ว ไม่คิดเงินครับ" : "งานนี้เริ่มไปแล้ว ยกเลิกไม่ได้ครับ")]);
     }
     if (action === "refund") {
-      const r = store.refund(userId, id);
+      const price = kind === "price";
+      const r = store.refund(userId, id, price ? REFUND.priceReason : "", { price });
       const msg = {
-        refunded: `คืนเงิน ${baht(r.job?.price)} เป็นเครดิตแล้ว\nเครดิตคงเหลือ ${baht(store.user(userId).credit)}\nขอบคุณที่บอก เราจะเอาไปปรับ Smith`,
-        review: "เดือนนี้ใช้สิทธิ์คืนเงินอัตโนมัติครบ 3 ครั้งแล้ว ทีมงานจะตรวจให้ภายใน 1 วันทำการ",
+        refunded: `คืนเงิน ${baht(r.job?.price)} เป็นเครดิตแล้ว${price ? " ราคาไม่ตรงเป็นความผิดของ Smith ขอโทษด้วยครับ" : ""}\nเครดิตคงเหลือ ${baht(store.user(userId).credit)}\nขอบคุณที่บอก เราจะเอาไปปรับ Smith`,
+        review: `เดือนนี้ใช้สิทธิ์คืนเงิน${price ? "กรณีราคาไม่ตรง" : ""}อัตโนมัติครบ ${price ? REFUND.priceAutoPerMonth : REFUND.autoPerMonth} ครั้งแล้ว ทีมงานจะตรวจให้ภายใน 1 วันทำการ`,
         expired: "ขอคืนเงินได้ภายใน 24 ชั่วโมงหลังได้ผลงาน งานนี้เกินเวลาแล้วครับ",
         already: "งานนี้ขอคืนเงินไปแล้วครับ",
         not_charged: "งานนี้ไม่ได้คิดเงินครับ",
@@ -79,11 +87,18 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
     }
     const sources = r.sources.map((s, i) => `${i + 1}. ${s.title}\n${s.url}`);
     const options = (r.options || []).map((o, i) => [`${i + 1}. ${o.name}${o.price ? ` · ${o.price}` : ""}`, o.note, o.url].filter(Boolean).join("\n"));
+    const codes = (r.codes || []).map((c, i) => [`${i + 1}. ${c.code}${c.shop ? ` · ${c.shop}` : ""}`, c.note, c.url].filter(Boolean).join("\n"));
+    const reach = coverageText(r.coverage);
     const when = `เช็กเมื่อ ${clock()} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`;
     // The quick reply shows only on the last message, so the result text goes last and pictures first.
     const result = (list) => text(
-      [`เสร็จแล้ว: ${job.title}`, "", r.answer, "", ...(list && options.length ? ["ตัวเลือกที่เจอ", ...options, ""] : []), "หลักฐาน", ...sources, "", when].join("\n"),
-      [postback("ผลไม่ตรง ขอเงินคืน", `refund:${job.id}`)],
+      [
+        `เสร็จแล้ว: ${job.title}`, "", r.answer, "",
+        ...(list && options.length ? ["ตัวเลือกที่เจอ", ...options, ""] : []),
+        ...(codes.length ? ["โค้ดส่วนลดที่เจอ (เจอบนหน้าเว็บ อาจหมดอายุ ตรวจก่อนใช้)", ...codes, ""] : []),
+        "หลักฐาน", ...sources, ...(reach ? ["", reach] : []), "", when,
+      ].join("\n"),
+      [postback("ราคาไม่ตรงหน้าเว็บ", `refund:${job.id}:price`), postback("ผลไม่ตรงอย่างอื่น", `refund:${job.id}`)],
     );
     const shot = r.evidence && publicUrl ? [image(publicUrl + r.evidence)] : []; // LINE needs an absolute https URL
     if (!publicUrl || !options.length) return line.push(job.user_id, [...shot, result(true)]);

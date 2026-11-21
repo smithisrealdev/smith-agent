@@ -44,7 +44,7 @@ test("quote first, charge only after a successful run", async () => {
   assert.equal(sent.at(-1).to, "u1");
   assert.match(lastText(sent), /เสร็จแล้ว: หาตั๋วไปเชียงใหม่[\s\S]*฿1,290[\s\S]*https:\/\/a\.example\/flight/);
   assert.doesNotMatch(lastText(sent), /ตัวเลือกที่เจอ/, "no options, no options section");
-  assert.deepEqual(actions(sent), ["refund:1"]);
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"]);
   assert.equal(store.user("u1").credit, 11);
   const job = store.job(1);
   assert.equal(job.status, "done");
@@ -212,7 +212,7 @@ test("LINE gets the options as cards: product picture, name, price, the shop's l
   assert.deepEqual(b.body.contents.map((c) => c.text), ["Airline B 09:30"], "no empty text boxes");
   assert.equal(b.footer, undefined, "no page, no button");
   assert.doesNotMatch(result.text, /ตัวเลือกที่เจอ/, "the cards replace the list in the text");
-  assert.deepEqual(actions(sent), ["refund:1"], "the refund button stays on the last message");
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"], "the refund button stays on the last message");
 });
 
 test("if LINE refuses the cards, the result still arrives as text with the options listed", async () => {
@@ -221,7 +221,7 @@ test("if LINE refuses the cards, the result still arrives as text with the optio
   await bot.handle(tap("U1", "start:1"));
   assert.deepEqual(sent.at(-1).messages.map((m) => m.type), ["text"]);
   assert.match(lastText(sent), /ตัวเลือกที่เจอ\n1\. Airline A 07:05 · ฿1,290/);
-  assert.deepEqual(actions(sent), ["refund:1"]);
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"]);
 });
 
 test("LINE card links are fully percent-encoded, and blank text is left out", async () => {
@@ -229,4 +229,30 @@ test("LINE card links are fully percent-encoded, and blank text is left out", as
   const [card] = optionCards([{ name: "  ", price: " ", note: "", url: "https://a.example/s?q=a|b^c", image: "", logo: "" }], "https://smith.example").contents.contents;
   assert.equal(card.footer.contents[0].action.uri, "https://a.example/s?q=a%7Cb%5Ec");
   assert.deepEqual(card.body.contents.map((c) => c.text), ["ตัวเลือก", undefined]);
+});
+
+test("the LINE result lists discount codes with where they were seen, and what the agent could and could not read", async () => {
+  const codes = [{ code: "SAVE10", shop: "ร้าน A", note: "ลด 10% ขั้นต่ำ ฿500", url: "https://a.example/promo" }];
+  const coverage = { searches: 3, pages: 4, hosts: ["a.example", "b.example"], blocked: ["shopee.example"] };
+  const { bot, sent } = setup({ runTask: async () => ({ ...RESULT, codes, coverage }) });
+  await bot.handle(say("U1", "เทียบราคา"));
+  await bot.handle(tap("U1", "start:1"));
+  assert.match(lastText(sent), /โค้ดส่วนลดที่เจอ \(เจอบนหน้าเว็บ อาจหมดอายุ ตรวจก่อนใช้\)\n1\. SAVE10 · ร้าน A\nลด 10% ขั้นต่ำ ฿500\nhttps:\/\/a\.example\/promo/);
+  assert.match(lastText(sent), /อ่านเว็บ: ค้น 3 ครั้ง · อ่าน 4 หน้า จาก 2 เว็บ\nอ่านไม่ได้: shopee\.example/);
+  const { bot: plain, sent: plainSent } = setup();
+  await plain.handle(say("U1", "เทียบราคา"));
+  await plain.handle(tap("U1", "start:1"));
+  assert.doesNotMatch(lastText(plainSent), /โค้ดส่วนลด|อ่านเว็บ:/, "nothing is said when there is nothing to say");
+});
+
+test("tapping 'wrong price' in LINE refunds in full, tags the job, and says it was Smith's mistake", async () => {
+  const { store, bot, sent } = setup();
+  await bot.handle(say("U1", "เทียบราคา"));
+  await bot.handle(tap("U1", "start:1"));
+  assert.equal(store.user("U1").credit, 11);
+  await bot.handle(tap("U1", "refund:1:price"));
+  assert.match(lastText(sent), /ราคาไม่ตรงเป็นความผิดของ Smith/);
+  assert.equal(store.user("U1").credit, 20);
+  assert.equal(store.job(1).refund_tag, "price");
+  assert.equal(store.job(1).refund_reason, "ราคาไม่ตรงกับหน้าเว็บ");
 });

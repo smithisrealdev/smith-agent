@@ -303,3 +303,22 @@ test("files saved for a job whose account was deleted while it ran are removed",
   assert.equal(job, undefined);
   assert.equal(existsSync(join(evidenceDir, name)), false);
 });
+
+test("the app's 'price does not match the page' reason is a price claim; the job view carries codes and coverage", async (t) => {
+  const codes = [{ code: "SAVE10", shop: "ร้าน A", note: "ลด 10%", url: "https://a.example/promo" }];
+  const coverage = { searches: 2, pages: 2, hosts: ["a.example"], blocked: [] };
+  const s = await start({ runTask: async () => ({ ...RESULT, codes, coverage }) });
+  t.after(s.close);
+  const { body } = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
+  await s.call(A, "POST", `/api/jobs/${body.job.id}/start`);
+  const job = await waitFor(async () => {
+    const r = await s.call(A, "GET", `/api/jobs/${body.job.id}`);
+    return r.body.job.status === "done" && r.body.job;
+  });
+  assert.deepEqual(job.codes, codes);
+  assert.deepEqual(job.coverage, coverage);
+  const refund = await s.call(A, "POST", `/api/jobs/${body.job.id}/refund`, { reasons: ["ราคาไม่ตรงกับหน้าเว็บ", "ลิงก์เปิดไม่ได้"], note: "ราคาในเว็บ 9,500" });
+  assert.equal(refund.body.result, "refunded");
+  assert.equal(s.store.job(body.job.id).refund_tag, "price");
+  assert.match(s.store.job(body.job.id).refund_reason, /ราคาในเว็บ 9,500/);
+});

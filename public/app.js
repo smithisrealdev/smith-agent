@@ -223,7 +223,7 @@
   const TERMS = [
     ["Smith ทำอะไร", ["Agent ค้น เทียบ และสรุปข้อมูลจากเว็บไซต์สาธารณะตามคำสั่งของคุณ", "Smith ไม่จ่ายเงิน ไม่ล็อกอิน และไม่จองแทนคุณ"]],
     ["ราคาและเครดิต", ["Smith บอกราคาก่อนเริ่มทุกงาน และหักเครดิตไม่เกินราคานั้น", "งานที่ทำไม่สำเร็จไม่คิดเงิน", "เครดิตใช้ได้เฉพาะใน Smith แลกเป็นเงินสดไม่ได้ และหายไปเมื่อลบบัญชี"]],
-    ["การขอเงินคืน", ["ขอได้ภายใน 24 ชั่วโมงหลังได้ผลงาน คืนเป็นเครดิตอัตโนมัติเดือนละ 3 ครั้ง เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ"]],
+    ["การขอเงินคืน", ["ขอได้ภายใน 24 ชั่วโมงหลังได้ผลงาน คืนเป็นเครดิตอัตโนมัติเดือนละ 3 ครั้ง ถ้าเหตุผลคือราคาไม่ตรงกับหน้าเว็บ คืนอัตโนมัติได้เดือนละ 5 ครั้ง เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ"]],
     ["ความถูกต้องของข้อมูล", ["ข้อมูลมาจากเว็บไซต์ภายนอก ราคาและรายละเอียดเปลี่ยนได้ตลอด ตรวจกับเว็บต้นทางก่อนตัดสินใจทุกครั้ง", "ความรับผิดของ Smith ต่องานหนึ่งงาน จำกัดไม่เกินค่าบริการของงานนั้น เท่าที่กฎหมายอนุญาต"]],
     ["สิ่งที่ห้ามทำ", ["สั่งงานที่ผิดกฎหมาย ละเมิดสิทธิ์ผู้อื่น หรือส่งสแปม", "พยายามรับเครดิตฟรีหรือขอเงินคืนโดยไม่สุจริต", "ทีมงานระงับบัญชีที่ทำผิดเงื่อนไขได้"]],
     ["การเปลี่ยนแปลง", ["เราจะแจ้งในแอปก่อนเงื่อนไขใหม่มีผล เงื่อนไขนี้ใช้กฎหมายไทย"]],
@@ -378,6 +378,19 @@
     const cls = `card pad col option${i ? "" : " best"}`;
     return url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : `<div class="${cls}">${body}</div>`;
   };
+  const codeRow = (c, i) => `<div class="card pad row code"><div class="grow col" style="gap:3px;min-width:0">
+      <span class="codetxt">${esc(c.code)}</span><span class="small muted">${esc([c.shop, c.note].filter(Boolean).join(" · "))}</span>
+      ${/^https?:\/\//.test(c.url) ? `<a class="host" href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">เจอที่ ${esc(hostOf(c.url))}${svg(IC.bold.external, 14)}</a>` : ""}</div>
+      <button class="pill-btn" data-act="copy" data-arg="${i}">คัดลอก</button></div>`;
+  // What Smith opened for this job: how many searches and pages, which sites, and which it could not read.
+  const coverageCard = (c) => {
+    if (!c || (!c.searches && !c.pages)) return "";
+    const chips = (c.hosts || []).map((h) => `<span class="hostchip">${pref("pictures") ? `<img class="mini-logo" src="/logo/${esc(h)}.png" alt="">` : ""}${esc(h)}</span>`).join("");
+    return `<div class="card pad col"><span class="sect" style="padding:0;font-size:16px">Smith อ่านอะไรบ้าง</span>
+      <span class="small muted">ค้น ${Number(c.searches) || 0} ครั้ง · อ่าน ${Number(c.pages) || 0} หน้า จาก ${(c.hosts || []).length} เว็บ</span>
+      ${chips ? `<span class="chipsrow">${chips}</span>` : ""}
+      ${c.blocked?.length ? `<div class="note warn">${I.info}<span>อ่านไม่ได้: ${c.blocked.map(esc).join(", ")} ราคาจากเว็บนี้อาจไม่อยู่ในผล</span></div>` : ""}</div>`;
+  };
   function doneView(j, credit) {
     const refundable = j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3;
     // The phone reads the result aloud (its own Thai voice): for hands-busy moments and for people who find reading hard.
@@ -388,9 +401,11 @@
       ${j.status === "refund_review" ? `<div class="note warn">${I.clock}<span>ทีมงานกำลังตรวจคำขอคืนเงิน ภายใน 1 วันทำการ</span></div>` : ""}
       <div class="card pad pre" style="font-size:16px;line-height:1.6">${esc(j.answer)}</div>
       ${j.options?.length ? `<div class="sect">ตัวเลือกที่เจอ</div>${j.options.map(optionCard).join("")}` : ""}
+      ${j.codes?.length ? `<div class="sect">โค้ดส่วนลดที่เจอ</div><p class="small muted" style="padding:0 4px;margin-top:-6px">เจอบนหน้าเว็บ อาจหมดอายุ ตรวจก่อนใช้</p>${j.codes.map(codeRow).join("")}` : ""}
       <div class="sect">หลักฐานที่ตรวจเองได้</div>
       ${/^\/evidence\/[\w-]+\.png$/.test(j.evidence) ? `<a href="${esc(j.evidence)}" target="_blank" rel="noopener"><img class="evidence-img" src="${esc(j.evidence)}" alt="ภาพหน้าจอเว็บที่ Smith ใช้เป็นหลักฐาน แตะเพื่อดูภาพเต็ม"></a>` : ""}
       ${j.sources.length ? `<div class="card list">${j.sources.map(sourceRow).join("")}</div>` : '<p class="small muted" style="padding:0 4px">งานนี้ไม่มีลิงก์อ้างอิง</p>'}
+      ${coverageCard(j.coverage)}
       <div class="card list">
         <div class="item"><span class="grow muted">จ่ายจริง</span><span class="money">${j.status === "refunded" ? baht(0) : baht(j.price)}</span></div>
         <div class="item"><span class="grow muted">ใช้เวลา</span><span>${duration(j.startedAt, j.finishedAt)}</span></div>
@@ -417,13 +432,17 @@
     state.refund = { reasons: new Set(), note: "", error: false, result: null };
     render(refundView());
   }
+  // Same limits as REFUND in src/config.js, for the wording only: the server decides.
+  const REFUND_AUTO = 3;
+  const REFUND_PRICE_AUTO = 5;
   function refundView() {
     const j = state.job;
     const f = state.refund;
+    const price = f.reasons.has(0); // "ราคาไม่ตรงกับหน้าเว็บ" is the first reason: Smith's own mistake
     if (f.result) {
       const [title, text, mascot] = {
-        refunded: [`คืนเงินแล้ว ${baht(j.price)}`, "เครดิตเข้าแล้ว ใช้สั่งงานต่อได้ทันที ขอบคุณที่บอก เราจะเอาไปปรับ Smith", "done"],
-        review: ["ส่งให้ทีมงานตรวจแล้ว", "เดือนนี้ใช้สิทธิ์คืนเงินอัตโนมัติครบ 3 ครั้งแล้ว ทีมงานจะตรวจให้ภายใน 1 วันทำการ", "calm"],
+        refunded: [`คืนเงินแล้ว ${baht(j.price)}`, price ? "ขอโทษที่ราคาไม่ตรง เป็นความผิดของ Smith เครดิตเข้าแล้ว ใช้สั่งงานต่อได้ทันที เราจะเอาไปปรับ Smith" : "เครดิตเข้าแล้ว ใช้สั่งงานต่อได้ทันที ขอบคุณที่บอก เราจะเอาไปปรับ Smith", "done"],
+        review: ["ส่งให้ทีมงานตรวจแล้ว", `เดือนนี้ใช้สิทธิ์คืนเงิน${price ? "กรณีราคาไม่ตรง" : ""}อัตโนมัติครบ ${price ? REFUND_PRICE_AUTO : REFUND_AUTO} ครั้งแล้ว ทีมงานจะตรวจให้ภายใน 1 วันทำการ`, "calm"],
         expired: ["เกินเวลาขอคืนเงินแล้ว", "ขอคืนเงินได้ภายใน 24 ชั่วโมงหลังได้ผลงาน", "calm"],
         already: ["ขอคืนเงินงานนี้ไปแล้ว", "ดูสถานะได้ในหน้างาน", "calm"],
         not_charged: ["งานนี้ไม่ได้คิดเงิน", "ไม่ต้องขอคืน", "calm"],
@@ -441,9 +460,10 @@
       <fieldset style="border:0;margin:0;padding:0"><legend class="sect" style="margin-bottom:10px">ผลไม่ตรงตรงไหน</legend>
         <div class="chips">${REASONS.map((x, i) => `<button class="chip" data-act="reason" data-arg="${i}" aria-pressed="${f.reasons.has(i)}">${esc(x)}</button>`).join("")}</div>
         ${f.error ? '<p role="alert" class="small" style="color:var(--rtxt);margin:10px 4px 0">เลือกอย่างน้อย 1 ข้อ เพื่อให้เราแก้ได้ถูกจุด</p>' : ""}</fieldset>
+      ${price ? `<div class="note good">${I.check}<span>ราคาไม่ตรงเป็นความผิดของ Smith บอกราคาที่คุณเห็นบนหน้าเว็บในช่องด้านล่าง ทีมงานจะได้ตรวจหน้านั้นซ้ำ</span></div>` : ""}
       <div class="col"><label for="note" class="small" style="font-weight:600;padding:0 4px">เล่าเพิ่มอีกนิด (ไม่บังคับ)</label>
         <textarea id="note" class="field" rows="3" maxlength="300" placeholder="เช่น ราคาในหน้าจองสูงกว่าที่สรุปไว้">${esc(f.note)}</textarea></div>
-      <div class="note warn">${I.shield}<span>คืนเป็นเครดิตทันที เดือนละ 3 ครั้ง เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ</span></div>
+      <div class="note warn">${I.shield}<span>คืนเป็นเครดิตทันที เดือนละ ${REFUND_AUTO} ครั้ง (ราคาไม่ตรงกับหน้าเว็บ ${REFUND_PRICE_AUTO} ครั้ง) เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ</span></div>
       <div class="grow"></div>
       <button class="btn" data-act="refund">คืนเงิน ${baht(j.price)}</button>`;
   }
@@ -543,7 +563,7 @@
   const FAQ = [
     ["Smith คิดเงินยังไง", "บอกราคาก่อนเริ่มทุกงาน หักจากเครดิตไม่เกินราคานั้น ถ้าทำไม่สำเร็จไม่คิดเงิน"],
     ["Smith จ่ายเงินหรือจองแทนฉันได้ไหม", "ไม่ได้ Smith ค้น เทียบ และส่งลิงก์ให้ คุณจ่ายหรือจองเองบนเว็บของร้าน"],
-    ["ผลงานไม่ตรง ทำยังไง", "กดขอเงินคืนในหน้าผลงานภายใน 24 ชั่วโมง คืนเป็นเครดิตทันทีเดือนละ 3 ครั้ง เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ"],
+    ["ผลงานไม่ตรง ทำยังไง", "กดขอเงินคืนในหน้าผลงานภายใน 24 ชั่วโมง คืนเป็นเครดิตทันทีเดือนละ 3 ครั้ง ถ้าราคาไม่ตรงกับหน้าเว็บคืนทันทีเดือนละ 5 ครั้ง เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ"],
     ["ข้อมูลของฉันไปที่ไหน", "คำสั่งและหน้าเว็บที่ Agent อ่านจะส่งไปประมวลผลกับผู้ให้บริการ AI ในต่างประเทศ ภายใต้สัญญาที่ห้ามนำไปฝึก AI Smith ไม่ขายข้อมูลให้ใคร และคุณลบบัญชีพร้อมข้อมูลทั้งหมดได้เองในหน้าตั้งค่า"],
     ["ทำไมต้องรอหลายนาที", "Agent เปิดหลายเว็บเพื่อเทียบและเช็กข้อมูลจริง ปิดแอปไว้ได้ งานยังทำต่อ"],
   ];
@@ -720,6 +740,16 @@
       say.onend = say.onerror = () => show(false);
       synth.speak(say);
     },
+    async copy(i) {
+      const code = state.job?.codes?.[i]?.code;
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        toast(`คัดลอกโค้ด ${code} แล้ว`);
+      } catch {
+        toast(`โค้ดคือ ${code} กดค้างที่โค้ดเพื่อคัดลอก`); // clipboard needs https; on plain http the code is still on screen to select
+      }
+    },
     "close-sheet": closeSheet,
     back: () => window.history.back(), // `history` here is the job-list screen
     reload: () => route(),
@@ -739,7 +769,7 @@
     }
   });
   // A site without a saved logo, or a picture that is gone: drop the broken image (the globe under a logo then shows).
-  app.addEventListener("error", (e) => e.target.matches?.(".logo, .shot") && e.target.remove(), true);
+  app.addEventListener("error", (e) => e.target.matches?.(".logo, .shot, .mini-logo") && e.target.remove(), true);
   // Drag the sheet down to close it. Only from the top of its scroll, so scrolling its content still works.
   let drag = null;
   app.addEventListener("touchstart", (e) => {

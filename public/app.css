@@ -209,7 +209,7 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
   animation: drift 14s ease-in-out infinite alternate;
 }
 @keyframes drift { from { transform: translateX(-10px); } to { transform: translateX(10px); } }
-.pill-btn { height: 40px; padding: 0 18px; border-radius: 20px; background: var(--soft); color: var(--link); font-family: "Mitr", sans-serif; font-weight: 600; font-size: 15px; }
+.pill-btn { flex: none; white-space: nowrap; height: 40px; padding: 0 18px; border-radius: 20px; background: var(--soft); color: var(--link); font-family: "Mitr", sans-serif; font-weight: 600; font-size: 15px; }
 
 /* onboarding scenes: props float around the mascot, each popping in a beat after the last */
 .scene { position: relative; width: 100%; max-width: 340px; padding: 26px 0 22px; }
@@ -259,6 +259,14 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
 .calm #app.in > *, .calm #app.in > .slot > *, .calm #app.in .mascot, .calm .prop, .calm .prop > span, .calm .clouds, .calm .sparks svg, .calm .toast, .calm .sheet, .calm .scrim { animation: none !important; }
 
 .sheet .seg { margin-top: 2px; }
+
+/* discount codes, and what Smith read */
+.code { align-items: center; }
+.code .host { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--link); text-decoration: none; overflow-wrap: anywhere; }
+.codetxt { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 700; font-size: 20px; letter-spacing: .5px; user-select: all; overflow-wrap: anywhere; }
+.chipsrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.hostchip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px 0 6px; border-radius: 14px; background: var(--field); font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.mini-logo { width: 18px; height: 18px; border-radius: 5px; object-fit: contain; background: #FFFFFF; }
 
 /* a finished job twinkles */
 .mascot { position: relative; }

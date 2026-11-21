@@ -14,7 +14,7 @@ test("a database made by an earlier version gets the newer columns in place", ()
   old.close();
   const db = openDb(path);
   const cols = db.prepare("PRAGMA table_info(jobs)").all().map((c) => c.name);
-  assert.ok(cols.includes("refund_reason") && cols.includes("options"));
+  for (const col of ["refund_reason", "refund_tag", "options", "codes", "coverage"]) assert.ok(cols.includes(col), col);
   assert.equal(db.prepare("SELECT text FROM jobs").get().text, "kept", "existing rows are untouched");
   openDb(path); // running it again is harmless
 });

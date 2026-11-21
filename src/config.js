@@ -25,7 +25,8 @@ export const SIZES = {
 };
 
 // Auto-refund rules from the design: within 24 hours of the result, 3 times a month; the rest go to manual review.
-export const REFUND = { windowHours: 24, autoPerMonth: 3 };
+// "The price is not what the page shows" is Smith's own mistake, so it has its own, larger allowance.
+export const REFUND = { windowHours: 24, autoPerMonth: 3, priceAutoPerMonth: 5, priceReason: "ราคาไม่ตรงกับหน้าเว็บ" };
 
 // List prices in USD per million tokens [input, output, cache read], Nov 2026. Web search is $10 per 1,000 searches.
 export const MODEL_PRICES = {
