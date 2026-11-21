@@ -14,19 +14,23 @@ export const logoHost = (url) => {
   }
 };
 
+// True when the logo is on disk, already or now.
 async function saveLogo(host, dir, fetchImpl) {
   const file = join(dir, `${host}.png`);
-  if (await access(file).then(() => true, () => false)) return;
+  if (await access(file).then(() => true, () => false)) return true;
   const res = await fetchImpl(ICON_SERVICE + host, { signal: AbortSignal.timeout(3000) });
-  if (!res.ok || !/^image\/(png|jpeg|x-icon|vnd\.microsoft\.icon)/.test(res.headers.get("content-type") || "")) return; // unknown site: the app shows its globe
+  // PNG or JPEG only (LINE shows nothing else). An unknown site gets no file: the app shows its globe.
+  if (!res.ok || !/^image\/(png|jpeg)/.test(res.headers.get("content-type") || "")) return false;
   const data = Buffer.from(await res.arrayBuffer());
-  if (data.length > 200_000) return;
+  if (data.length > 200_000) return false;
   await mkdir(dir, { recursive: true });
   await writeFile(file, data);
+  return true;
 }
 
-// Never throws: a missing logo only means the app shows its own icon.
+// Returns the sites that now have a logo. Never throws: a missing logo only means the app shows its own icon.
 export async function saveLogos(urls, dir, fetchImpl = fetch) {
   const hosts = [...new Set(urls.map(logoHost).filter(Boolean))];
-  await Promise.allSettled(hosts.map((host) => saveLogo(host, dir, fetchImpl)));
+  const saved = await Promise.all(hosts.map((host) => saveLogo(host, dir, fetchImpl).catch(() => false)));
+  return hosts.filter((_, i) => saved[i]);
 }

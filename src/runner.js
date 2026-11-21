@@ -1,10 +1,12 @@
 import { mkdirSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
+import { logoHost } from "./logo.js";
 
 // One job from start to finish, shared by the LINE bot and the web app:
 // run the agent, keep a screenshot as evidence when possible, then settle the credit.
-export function createRunner({ store, runTask, screenshot, saveLogos = async () => {}, saveImages = async () => {}, evidenceDir = "data/evidence", log = console }) {
+export function createRunner({ store, runTask, screenshot, saveLogos = async () => [], saveImages = async () => {}, evidenceDir = "data/evidence", log = console }) {
+  const logos = join(evidenceDir, "logos");
   const live = new Map(); // job id -> steps so far, shown while it runs; gone once it finishes
 
   async function run(job) {
@@ -12,7 +14,11 @@ export function createRunner({ store, runTask, screenshot, saveLogos = async () 
     live.set(job.id, steps);
     let r;
     try {
-      r = await runTask(job, undefined, undefined, (step) => steps.length < 30 && steps.push({ at: new Date().toISOString(), text: step }));
+      r = await runTask(job, undefined, undefined, (step, url = "") => {
+        if (steps.length >= 30) return;
+        steps.push({ at: new Date().toISOString(), text: step, host: logoHost(url) });
+        if (url) Promise.resolve(saveLogos([url], logos)).catch(() => {}); // fetched now, so the step can show the site's logo while the job runs
+      });
     } catch (err) {
       log.error("run failed", job.id, err);
       r = { ok: false, error: String(err?.message || err), summary: "ระบบขัดข้องระหว่างทำงาน", sources: [] };
@@ -20,7 +26,8 @@ export function createRunner({ store, runTask, screenshot, saveLogos = async () 
     if (!r.ok) r.answer = r.summary || "Smith หาคำตอบที่เชื่อถือได้ไม่เจอ"; // what the user reads on a failed job
     if (r.ok) {
       r.options ||= [];
-      await Promise.all([saveLogos([...r.sources, ...r.options].map((x) => x.url), join(evidenceDir, "logos")), saveImages(r.options, evidenceDir, job.id)]);
+      const [have] = await Promise.all([saveLogos([...r.sources, ...r.options].map((x) => x.url), logos), saveImages(r.options, evidenceDir, job.id)]);
+      for (const o of r.options) if (have?.includes(logoHost(o.url))) o.logo = `/logo/${logoHost(o.url)}.png`; // LINE must know the file exists
     }
     if (r.ok && r.bestUrl) {
       mkdirSync(evidenceDir, { recursive: true });

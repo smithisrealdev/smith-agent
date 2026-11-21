@@ -127,7 +127,9 @@ test("while it runs, each search, page read and the final report becomes a step 
   };
   const report = { model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [] })] };
   const steps = [];
-  await runTask({ text: "x", steps: "[]", size: "S" }, fakeClient(paused, report), new Date(), (s) => steps.push(s));
+  const pages = [];
+  await runTask({ text: "x", steps: "[]", size: "S" }, fakeClient(paused, report), new Date(), (s, url) => (steps.push(s), pages.push(url)));
+  assert.deepEqual(pages, ["", "https://www.airline-a.example/fares", ""], "a page read also names its page, for the site's logo");
   assert.deepEqual(steps, ['ค้นหา "ตั๋ว เชียงใหม่ ศุกร์"', "เปิดอ่าน airline-a.example", "สรุปผล"]);
   assert.equal(stepOf({ type: "server_tool_use", name: "web_fetch", input: { url: "not a url" } }), null);
   assert.equal(stepOf({ type: "server_tool_use", name: "web_search", input: {} }), null, "no query yet");

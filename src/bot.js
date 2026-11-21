@@ -1,5 +1,5 @@
 import { SIZES } from "./config.js";
-import { text, postback, image, optionCards, lineCanShow } from "./line.js";
+import { text, postback, image, optionCards } from "./line.js";
 
 const baht = (n) => `฿${n}`;
 const clock = () => new Date().toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
@@ -86,8 +86,8 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
       [postback("ผลไม่ตรง ขอเงินคืน", `refund:${job.id}`)],
     );
     const shot = r.evidence && publicUrl ? [image(publicUrl + r.evidence)] : []; // LINE needs an absolute https URL
-    if (!publicUrl || !(r.options || []).some((o) => lineCanShow(o.image))) return line.push(job.user_id, [...shot, result(true)]);
-    // With product pictures the options go out as cards. If LINE turns the cards down, the result still arrives as text.
+    if (!publicUrl || !options.length) return line.push(job.user_id, [...shot, result(true)]);
+    // The options go out as cards, with product pictures and shop logos where there are any. If LINE turns the cards down, the result still arrives as text.
     return line.push(job.user_id, [...shot, optionCards(r.options, publicUrl), result(false)]).catch((err) => {
       log.error("option cards refused", err);
       return line.push(job.user_id, [...shot, result(true)]);

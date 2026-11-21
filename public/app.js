@@ -118,12 +118,18 @@
     const [label, tone, ic] = STATUS[j.status] || ["", "grey", "clock"];
     const href = j.status === "quoted" || j.status === "rejected" ? `#/quote/${j.id}` : `#/job/${j.id}`;
     const charged = ["done", "refund_review", "running"].includes(j.status);
-    return `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}</span>
+    const top = j.options?.[0];
+    // A finished job shows what it found: the first option's picture, or the logo of the site it came from.
+    const art = j.status !== "done" ? "" : picture(top) ? `<img class="logo photo" src="${esc(picture(top))}" alt="" loading="lazy">` : logoImg(hostOf(top?.url || j.sources?.[0]?.url));
+    return `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}${art}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
       <span class="s">${esc(when(j.createdAt))} · ${label}${j.status === "running" ? ` ${DOTS}` : ""}</span></span>
       ${charged ? `<span class="money">${baht(j.price)}</span>` : ""}</a>`;
   };
-  const siteTile = (url) => `<span class="tile">${D.link}${hostOf(url) ? `<img class="logo" src="/logo/${esc(hostOf(url))}.png" alt="" loading="lazy">` : ""}</span>`;
+  // Pictures sit on top of an icon: when one is missing or fails to load it is removed and the icon shows.
+  const logoImg = (host) => (host ? `<img class="logo" src="/logo/${esc(host)}.png" alt="" loading="lazy">` : "");
+  const picture = (o) => (/^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o?.image) ? o.image : ""); // the product's picture, when its page had one
+  const siteTile = (url) => `<span class="tile">${D.link}${logoImg(hostOf(url))}</span>`;
   const sourceRow = (s) =>
     /^https?:\/\//.test(s.url)
       ? `<a class="source" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${siteTile(s.url)}
@@ -234,7 +240,7 @@
     }
     if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
   }
-  const liveCard = (j) => `<a class="item live-card" href="#/job/${j.id}"><span class="tile">${D.bolt}</span>
+  const liveCard = (j) => `<a class="item live-card" href="#/job/${j.id}"><span class="tile">${D.bolt}${logoImg(j.progress?.at(-1)?.host)}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
       <span class="s">${esc(j.progress?.at(-1)?.text || "กำลังเริ่มงาน")} ${DOTS}</span><span class="s">ผ่านไป ${duration(j.startedAt)}</span></span>${I.chev}</a>`;
   function homeParts() {
@@ -327,7 +333,7 @@
     return j.progress.slice(from).map((p, k) => {
       const i = from + k;
       const now = i === j.progress.length - 1;
-      return `<div class="step${i >= seen ? " enter" : ""}"><span class="n ${now ? "now" : "ok"}">${svg(now ? IC.bold.bolt : IC.bold.check, 16)}</span><span>${esc(p.text)}${now ? ` ${DOTS}` : ""}</span></div>`;
+      return `<div class="step${i >= seen ? " enter" : ""}"><span class="n ${now ? "now" : "ok"}">${svg(now ? IC.bold.bolt : IC.bold.check, 16)}${logoImg(p.host)}</span><span>${esc(p.text)}${now ? ` ${DOTS}` : ""}</span></div>`;
     }).join("");
   };
   const runningView = (j) => `${topbar(j.title)}
@@ -342,9 +348,8 @@
       <a class="btn second" href="#/">กลับหน้าแรก</a>`;
   const optionCard = (o, i) => {
     const url = /^https?:\/\//.test(o.url) ? o.url : "";
-    const picture = /^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o.image) ? o.image : ""; // the product's picture, when its page had one
     const body = `${i ? "" : `<span class="pill good">${svg(IC.bold.check, 14)}แนะนำ</span>`}
-      <span class="row" style="align-items:flex-start">${picture ? `<img class="shot" src="${esc(picture)}" alt="" loading="lazy">` : url ? siteTile(url) : `<span class="tile grey">${D.tag}</span>`}
+      <span class="row" style="align-items:flex-start">${picture(o) ? `<img class="shot" src="${esc(picture(o))}" alt="" loading="lazy">` : url ? siteTile(url) : `<span class="tile grey">${D.tag}</span>`}
         <span class="grow col" style="gap:4px;min-width:0"><span class="name">${esc(o.name)}</span>${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}
           ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${esc(hostOf(url))}${svg(IC.bold.external, 14)}</span>` : ""}</span></span>`;
     const cls = `card pad col option${i ? "" : " best"}`;

@@ -240,15 +240,23 @@ test("a finished job saves its sites' logos, and /logo/ serves only those files"
     saved.push(urls);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "b.example.png"), "png");
+    return ["b.example"];
   };
-  const runner = createRunner({ store, runTask: async () => ({ ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }] }), screenshot: async () => false, saveLogos, evidenceDir, log: { error() {} } });
+  const runTask = async (_job, _client, _today, onProgress) => {
+    onProgress('ค้นหา "x"');
+    onProgress("เปิดอ่าน b.example", "https://www.b.example/y");
+    assert.deepEqual(runner.progress(1).map((p) => p.host), ["", "b.example"], "a page-read step carries its site, for the logo");
+    return { ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }, { name: "C", price: "", note: "", url: "https://c.example/" }] };
+  };
+  const runner = createRunner({ store, runTask, screenshot: async () => false, saveLogos, evidenceDir, log: { error() {} } });
   const handle = createWeb({ store, quote: async () => QUOTE, runner, evidenceDir, log: { error() {} } });
   const server = createServer(async (req, res) => (await handle(req, res)) || res.writeHead(404).end());
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
-  await runner.run(store.start("u", store.addQuote(store.user("u").id, "x", QUOTE).id).job);
-  assert.deepEqual(saved, [["https://b.example/x", "https://b.example/y"]]);
+  const { job } = await runner.run(store.start("u", store.addQuote(store.user("u").id, "x", QUOTE).id).job);
+  assert.deepEqual(saved, [["https://www.b.example/y"], ["https://b.example/x", "https://b.example/y", "https://c.example/"]], "once while the page is read, once at the end");
+  assert.deepEqual(JSON.parse(job.options).map((o) => o.logo), ["/logo/b.example.png", undefined], "an option knows whether its shop has a logo");
   const ok = await fetch(`${base}/logo/b.example.png`);
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("content-type"), "image/png");

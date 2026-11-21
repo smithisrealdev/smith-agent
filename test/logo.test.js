@@ -22,9 +22,9 @@ test("each site's logo is fetched once, and a failed or odd answer just leaves n
     return png();
   };
   const urls = ["https://www.a.example/1", "https://a.example/2", "https://down.example", "https://unknown.example", "https://html.example", "nope"];
-  await saveLogos(urls, dir, fetchImpl);
+  assert.deepEqual(await saveLogos(urls, dir, fetchImpl), ["a.example"], "it reports which sites have a logo");
   assert.deepEqual(readdirSync(dir), ["a.example.png"]);
   assert.deepEqual(asked.sort(), ["a.example", "down.example", "html.example", "unknown.example"], "one request per site");
-  await saveLogos(["https://a.example/3"], dir, fetchImpl);
+  assert.deepEqual(await saveLogos(["https://a.example/3"], dir, fetchImpl), ["a.example"]);
   assert.equal(asked.length, 4, "a saved logo is not fetched again");
 });

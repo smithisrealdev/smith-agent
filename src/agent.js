@@ -152,7 +152,7 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
     const stream = client.beta.messages.stream(params);
     stream.on("contentBlock", (block) => {
       const step = stepOf(block);
-      if (step) onProgress(step);
+      if (step) onProgress(step, block.name === "web_fetch" ? block.input.url : ""); // the page, so the step can show that site's logo
     });
     const res = await stream.finalMessage();
     usage.cost += costThb(res.model, res.usage);

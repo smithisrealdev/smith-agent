@@ -194,10 +194,10 @@ test("the LINE result lists the options the agent found, each with its price, no
 });
 
 const PICTURED = [
-  { name: "Airline A 07:05", price: "฿1,290", note: "บินตรง", url: "https://a.example/เที่ยวบิน", image: `/evidence/1-${"a".repeat(24)}.jpg` },
+  { name: "Airline A 07:05", price: "฿1,290", note: "บินตรง", url: "https://www.a.example/เที่ยวบิน", image: `/evidence/1-${"a".repeat(24)}.jpg`, logo: "/logo/a.example.png" },
   { name: "Airline B 09:30", price: "", note: "", url: "", image: `/evidence/1-${"b".repeat(24)}.webp` },
 ];
-test("with product pictures, LINE gets the options as cards: picture, name, price and a button to the page", async () => {
+test("LINE gets the options as cards: product picture, name, price, the shop's logo and a button to the page", async () => {
   const { bot, sent } = setup({ runTask: async () => ({ ...RESULT, options: PICTURED }), publicUrl: "https://smith.example" });
   await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
   await bot.handle(tap("U1", "start:1"));
@@ -205,8 +205,9 @@ test("with product pictures, LINE gets the options as cards: picture, name, pric
   assert.equal(cards.type, "flex");
   const [a, b] = cards.contents.contents;
   assert.equal(a.hero.url, `https://smith.example/evidence/1-${"a".repeat(24)}.jpg`);
-  assert.deepEqual(a.body.contents.map((c) => c.text), ["Airline A 07:05", "฿1,290", "บินตรง"]);
-  assert.equal(a.footer.contents[0].action.uri, "https://a.example/%E0%B9%80%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%A2%E0%B8%A7%E0%B8%9A%E0%B8%B4%E0%B8%99", "LINE wants the link percent-encoded");
+  assert.deepEqual(a.body.contents.slice(0, 3).map((c) => c.text), ["Airline A 07:05", "฿1,290", "บินตรง"]);
+  assert.deepEqual(a.body.contents[3].contents.map((c) => c.url || c.text), ["https://smith.example/logo/a.example.png", "a.example"], "the shop's logo and name");
+  assert.equal(a.footer.contents[0].action.uri, "https://www.a.example/%E0%B9%80%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%A2%E0%B8%A7%E0%B8%9A%E0%B8%B4%E0%B8%99", "LINE wants the link percent-encoded");
   assert.equal(b.hero, undefined, "LINE cannot show WebP");
   assert.deepEqual(b.body.contents.map((c) => c.text), ["Airline B 09:30"], "no empty text boxes");
   assert.equal(b.footer, undefined, "no page, no button");
