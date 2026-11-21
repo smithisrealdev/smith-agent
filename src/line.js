@@ -31,3 +31,36 @@ export const text = (t, actions = []) => ({
 });
 export const postback = (label, data, displayText = label) => ({ type: "postback", label: label.slice(0, 20), data, displayText });
 export const image = (url) => ({ type: "image", originalContentUrl: url, previewImageUrl: url });
+
+// LINE shows JPEG and PNG only, and wants percent-encoded links of at most 1000 characters.
+export const lineCanShow = (file) => /\.(jpg|png)$/.test(file || "");
+const link = (url) => {
+  try {
+    const href = new URL(url).href;
+    return href.length <= 1000 ? href : "";
+  } catch {
+    return "";
+  }
+};
+// A swipeable row of option cards (Flex Message): product picture, name, price, note and a button to the page.
+export const optionCards = (options, publicUrl) => ({
+  type: "flex",
+  altText: `ตัวเลือกที่เจอ: ${options.map((o) => o.name).join(", ")}`.slice(0, 400),
+  contents: {
+    type: "carousel",
+    contents: options.map((o) => ({
+      type: "bubble",
+      size: "kilo",
+      ...(lineCanShow(o.image) && { hero: { type: "image", url: publicUrl + o.image, size: "full", aspectRatio: "1:1", aspectMode: "cover" } }),
+      body: {
+        type: "box", layout: "vertical", spacing: "sm",
+        contents: [
+          { type: "text", text: o.name || "ตัวเลือก", weight: "bold", wrap: true, maxLines: 3 },
+          o.price && { type: "text", text: o.price, weight: "bold", size: "xl", color: "#0B1B4D" },
+          o.note && { type: "text", text: o.note, size: "sm", color: "#4A5778", wrap: true },
+        ].filter(Boolean),
+      },
+      ...(link(o.url) && { footer: { type: "box", layout: "vertical", contents: [{ type: "button", style: "primary", color: "#0A4BFF", height: "sm", action: { type: "uri", label: "เปิดดู", uri: link(o.url) } }] } }),
+    })),
+  },
+});

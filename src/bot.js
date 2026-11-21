@@ -1,5 +1,5 @@
 import { SIZES } from "./config.js";
-import { text, postback, image } from "./line.js";
+import { text, postback, image, optionCards, lineCanShow } from "./line.js";
 
 const baht = (n) => `฿${n}`;
 const clock = () => new Date().toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
@@ -79,16 +79,19 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
     }
     const sources = r.sources.map((s, i) => `${i + 1}. ${s.title}\n${s.url}`);
     const options = (r.options || []).map((o, i) => [`${i + 1}. ${o.name}${o.price ? ` · ${o.price}` : ""}`, o.note, o.url].filter(Boolean).join("\n"));
-    const result = [
-      `เสร็จแล้ว: ${job.title}`, "", r.answer, "",
-      ...(options.length ? ["ตัวเลือกที่เจอ", ...options, ""] : []),
-      "หลักฐาน", ...sources, "",
-      `เช็กเมื่อ ${clock()} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`,
-    ].join("\n");
-    // The quick reply shows only on the last message, so the screenshot goes first.
-    const messages = [text(result, [postback("ผลไม่ตรง ขอเงินคืน", `refund:${job.id}`)])];
-    if (r.evidence && publicUrl) messages.unshift(image(publicUrl + r.evidence)); // LINE needs an absolute https URL
-    return line.push(job.user_id, messages);
+    const when = `เช็กเมื่อ ${clock()} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`;
+    // The quick reply shows only on the last message, so the result text goes last and pictures first.
+    const result = (list) => text(
+      [`เสร็จแล้ว: ${job.title}`, "", r.answer, "", ...(list && options.length ? ["ตัวเลือกที่เจอ", ...options, ""] : []), "หลักฐาน", ...sources, "", when].join("\n"),
+      [postback("ผลไม่ตรง ขอเงินคืน", `refund:${job.id}`)],
+    );
+    const shot = r.evidence && publicUrl ? [image(publicUrl + r.evidence)] : []; // LINE needs an absolute https URL
+    if (!publicUrl || !(r.options || []).some((o) => lineCanShow(o.image))) return line.push(job.user_id, [...shot, result(true)]);
+    // With product pictures the options go out as cards. If LINE turns the cards down, the result still arrives as text.
+    return line.push(job.user_id, [...shot, optionCards(r.options, publicUrl), result(false)]).catch((err) => {
+      log.error("option cards refused", err);
+      return line.push(job.user_id, [...shot, result(true)]);
+    });
   }
 
   async function handle(e) {

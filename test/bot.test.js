@@ -11,16 +11,19 @@ const RESULT = {
   usage: { cost: 4.2, input_tokens: 9000, output_tokens: 800, searches: 3 },
 };
 
-function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock } = {}) {
+function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, refuse = () => false } = {}) {
   let t = clock ?? Date.parse("2026-11-20T03:00:00Z");
   const store = makeStore(openDb(":memory:"), { startCredit: 20, now: () => new Date(t) });
   const sent = [];
   const line = {
     reply: async (token, messages) => sent.push({ to: "reply", messages }),
-    push: async (to, messages) => sent.push({ to, messages }),
+    push: async (to, messages) => {
+      if (refuse(messages)) throw new Error("LINE push 400");
+      sent.push({ to, messages });
+    },
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
-  const bot = createBot({ store, line, quote, runner, log: { error() {} } });
+  const bot = createBot({ store, line, quote, runner, publicUrl, log: { error() {} } });
   return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
@@ -188,4 +191,34 @@ test("the LINE result lists the options the agent found, each with its price, no
   await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
   await bot.handle(tap("U1", "start:1"));
   assert.match(lastText(sent), /ตัวเลือกที่เจอ\n1\. Airline A 07:05 · ฿1,290\nบินตรง\nhttps:\/\/a\.example\/flight\n2\. Airline B 09:30\n\nหลักฐาน/);
+});
+
+const PICTURED = [
+  { name: "Airline A 07:05", price: "฿1,290", note: "บินตรง", url: "https://a.example/เที่ยวบิน", image: `/evidence/1-${"a".repeat(24)}.jpg` },
+  { name: "Airline B 09:30", price: "", note: "", url: "", image: `/evidence/1-${"b".repeat(24)}.webp` },
+];
+test("with product pictures, LINE gets the options as cards: picture, name, price and a button to the page", async () => {
+  const { bot, sent } = setup({ runTask: async () => ({ ...RESULT, options: PICTURED }), publicUrl: "https://smith.example" });
+  await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
+  await bot.handle(tap("U1", "start:1"));
+  const [cards, result] = sent.at(-1).messages;
+  assert.equal(cards.type, "flex");
+  const [a, b] = cards.contents.contents;
+  assert.equal(a.hero.url, `https://smith.example/evidence/1-${"a".repeat(24)}.jpg`);
+  assert.deepEqual(a.body.contents.map((c) => c.text), ["Airline A 07:05", "฿1,290", "บินตรง"]);
+  assert.equal(a.footer.contents[0].action.uri, "https://a.example/%E0%B9%80%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%A2%E0%B8%A7%E0%B8%9A%E0%B8%B4%E0%B8%99", "LINE wants the link percent-encoded");
+  assert.equal(b.hero, undefined, "LINE cannot show WebP");
+  assert.deepEqual(b.body.contents.map((c) => c.text), ["Airline B 09:30"], "no empty text boxes");
+  assert.equal(b.footer, undefined, "no page, no button");
+  assert.doesNotMatch(result.text, /ตัวเลือกที่เจอ/, "the cards replace the list in the text");
+  assert.deepEqual(actions(sent), ["refund:1"], "the refund button stays on the last message");
+});
+
+test("if LINE refuses the cards, the result still arrives as text with the options listed", async () => {
+  const { bot, sent } = setup({ runTask: async () => ({ ...RESULT, options: PICTURED }), publicUrl: "https://smith.example", refuse: (m) => m.some((x) => x.type === "flex") });
+  await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
+  await bot.handle(tap("U1", "start:1"));
+  assert.deepEqual(sent.at(-1).messages.map((m) => m.type), ["text"]);
+  assert.match(lastText(sent), /ตัวเลือกที่เจอ\n1\. Airline A 07:05 · ฿1,290/);
+  assert.deepEqual(actions(sent), ["refund:1"]);
 });
