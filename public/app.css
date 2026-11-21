@@ -216,7 +216,7 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
 /* sheet: slides up over the screen */
 .scrim { position: fixed; inset: 0; z-index: 4; background: rgba(11, 27, 77, .45); animation: fade 240ms both; }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; max-width: 480px; margin: 0 auto; max-height: 88dvh; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 8px; padding: 14px 16px max(22px, env(safe-area-inset-bottom)); border-radius: 30px 30px 0 0; background: #FFFFFF;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 16px max(22px, env(safe-area-inset-bottom)); border-radius: 30px 30px 0 0; background: #FFFFFF;
   animation: sheet-up 420ms var(--ease-out) both; }
 #app.in > .scrim { animation: fade 240ms both; }
 #app.in > .sheet { animation: sheet-up 420ms var(--ease-out) both; }
@@ -225,6 +225,8 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
 @keyframes sheet-up { from { transform: translateY(100%); } }
 @keyframes sheet-down { to { transform: translateY(100%); } }
 .sheet .list { padding: 0 4px; }
+.sheet { overscroll-behavior: contain; } /* dragging it down must not pull the page with it */
+.grab { flex: none; align-self: center; width: 40px; height: 5px; margin-bottom: -2px; border-radius: 3px; background: #D6DEF0; }
 
 /* switch */
 .switch { flex: none; position: relative; width: 52px; height: 32px; border-radius: 16px; background: #C3CDE3; transition: background-color 200ms; }

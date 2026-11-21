@@ -489,7 +489,7 @@
     for (const el of app.children) el.inert = true;
     document.documentElement.style.overflow = "hidden";
     app.insertAdjacentHTML("beforeend", `<div class="scrim" data-act="close-sheet"></div>
-      <div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="topbar"><span class="gap44"></span><div class="title">${esc(title)}</div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><span class="grab" aria-hidden="true"></span><div class="topbar"><span class="gap44"></span><div class="title">${esc(title)}</div>
         <button class="icon-btn" data-act="close-sheet" aria-label="ปิด">${I.x}</button></div>${body}</div>`);
     app.querySelector(".sheet .icon-btn").focus();
   }
@@ -705,6 +705,29 @@
   });
   // A site without a saved logo, or a picture that is gone: drop the broken image (the globe under a logo then shows).
   app.addEventListener("error", (e) => e.target.matches?.(".logo, .shot") && e.target.remove(), true);
+  // Drag the sheet down to close it. Only from the top of its scroll, so scrolling its content still works.
+  let drag = null;
+  app.addEventListener("touchstart", (e) => {
+    const sheet = e.target.closest?.(".sheet");
+    drag = sheet && sheet.scrollTop <= 0 ? { sheet, y: e.touches[0].clientY, dy: 0 } : null;
+  }, { passive: true });
+  app.addEventListener("touchmove", (e) => {
+    if (!drag) return;
+    drag.dy = Math.max(0, e.touches[0].clientY - drag.y);
+    if (drag.dy < 6) return; // a tap that wobbles is still a tap
+    // The slide-up animation would win over this transform, so it is switched off for good; a transition takes over.
+    Object.assign(drag.sheet.style, { animation: "none", transition: "none", transform: `translateY(${drag.dy}px)` });
+  }, { passive: true });
+  app.addEventListener("touchend", () => {
+    if (!drag) return;
+    const { sheet, dy } = drag;
+    drag = null;
+    if (dy < 6) return;
+    const close = dy > 90;
+    Object.assign(sheet.style, { transition: `transform ${close ? "220ms ease-in" : "320ms var(--spring)"}`, transform: close ? "translateY(100%)" : "translateY(0)" });
+    if (close) closeSheet();
+  });
+
   // Onboarding slides also turn with a swipe.
   let swipeX = null;
   app.addEventListener("touchstart", (e) => (swipeX = location.hash === "#/welcome" ? e.touches[0].clientX : null), { passive: true });
