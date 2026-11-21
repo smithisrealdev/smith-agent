@@ -5,13 +5,14 @@ import { verifySignature, lineClient } from "./line.js";
 import { quote, runTask } from "./agent.js";
 import { screenshot } from "./evidence.js";
 import { saveLogos } from "./logo.js";
+import { saveImages } from "./image.js";
 import { createRunner } from "./runner.js";
 import { createBot } from "./bot.js";
 import { createWeb } from "./web.js";
 import { createLineLogin } from "./linelogin.js";
 
 const store = makeStore(openDb(config.dbPath), config);
-const runner = createRunner({ store, runTask, screenshot, saveLogos, evidenceDir: config.evidenceDir });
+const runner = createRunner({ store, runTask, screenshot, saveLogos, saveImages, evidenceDir: config.evidenceDir });
 const bot = config.lineSecret && config.lineToken
   ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl })
   : null;

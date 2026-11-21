@@ -342,11 +342,11 @@
       <a class="btn second" href="#/">กลับหน้าแรก</a>`;
   const optionCard = (o, i) => {
     const url = /^https?:\/\//.test(o.url) ? o.url : "";
+    const picture = /^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o.image) ? o.image : ""; // the product's picture, when its page had one
     const body = `${i ? "" : `<span class="pill good">${svg(IC.bold.check, 14)}แนะนำ</span>`}
-      <span class="row" style="align-items:flex-start">${url ? siteTile(url) : `<span class="tile grey">${D.tag}</span>`}
-        <span class="grow col" style="gap:4px;min-width:0"><span class="name">${esc(o.name)}</span>
-          ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${esc(hostOf(url))}${svg(IC.bold.external, 14)}</span>` : ""}</span>
-        ${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}</span>`;
+      <span class="row" style="align-items:flex-start">${picture ? `<img class="shot" src="${esc(picture)}" alt="" loading="lazy">` : url ? siteTile(url) : `<span class="tile grey">${D.tag}</span>`}
+        <span class="grow col" style="gap:4px;min-width:0"><span class="name">${esc(o.name)}</span>${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}
+          ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${esc(hostOf(url))}${svg(IC.bold.external, 14)}</span>` : ""}</span></span>`;
     const cls = `card pad col option${i ? "" : " best"}`;
     return url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : `<div class="${cls}">${body}</div>`;
   };
@@ -623,8 +623,8 @@
       route();
     }
   });
-  // A site without a saved logo: drop the broken image so the globe under it shows.
-  app.addEventListener("error", (e) => e.target.classList?.contains("logo") && e.target.remove(), true);
+  // A site without a saved logo, or a picture that is gone: drop the broken image (the globe under a logo then shows).
+  app.addEventListener("error", (e) => e.target.matches?.(".logo, .shot") && e.target.remove(), true);
   app.addEventListener("input", (e) => {
     if (e.target.id === "cmd") {
       state.draft = e.target.value;

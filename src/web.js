@@ -10,6 +10,8 @@ const TYPES = {
   ".webmanifest": "application/manifest+json",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".webp": "image/webp",
 };
 const APP_FILES = new Set(["index.html", "app.js", "app.css", "mascots.js", "icons.js", "manifest.webmanifest", "icon.svg", "icon-180.png"]);
 
@@ -154,8 +156,8 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     if (req.method === "GET" && path === "/auth/line/callback" && lineLogin) return lineCallback(res, url.searchParams);
 
     if (req.method === "GET" && !path.startsWith("/api/")) {
-      const evidence = /^\/evidence\/(\d+-[0-9a-f]{24}\.png)$/.exec(path);
-      if (evidence) return sendFile(res, join(evidenceDir, evidence[1]), TYPES[".png"]);
+      const evidence = /^\/evidence\/(\d+-[0-9a-f]{24}\.(?:png|jpg|webp))$/.exec(path); // screenshots and product pictures
+      if (evidence) return sendFile(res, join(evidenceDir, evidence[1]), TYPES[extname(evidence[1])], "private, max-age=604800");
       const logo = /^\/logo\/([a-z0-9-]+(?:\.[a-z0-9-]+)+\.png)$/.exec(path); // a site's logo, saved when a job finished
       if (logo) return sendFile(res, join(evidenceDir, "logos", logo[1]), TYPES[".png"], "public, max-age=604800");
       const name = path === "/" ? "index.html" : path.slice(1);

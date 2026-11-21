@@ -169,10 +169,11 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     signOut: (key) => run("DELETE FROM sessions WHERE key = ?", key),
     quotesSince: (userId, since) => one("SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND created_at >= ?", userId, since).n,
 
-    // PDPA: delete everything about a user. Returns their evidence files so those can go too.
+    // PDPA: delete everything about a user. Returns their evidence files (screenshots, product pictures) so those can go too.
     deleteUser(userId) {
       return tx(() => {
-        const files = db.prepare("SELECT evidence FROM jobs WHERE user_id = ? AND evidence != ''").all(userId).map((r) => r.evidence);
+        const rows = db.prepare("SELECT evidence, options FROM jobs WHERE user_id = ?").all(userId);
+        const files = rows.flatMap((r) => [r.evidence, ...JSON.parse(r.options || "[]").map((o) => o.image)]).filter(Boolean);
         run("DELETE FROM jobs WHERE user_id = ?", userId);
         run("DELETE FROM ledger WHERE user_id = ?", userId);
         run("DELETE FROM users WHERE id = ?", userId);

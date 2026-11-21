@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openDb, makeStore } from "../src/db.js";
@@ -12,9 +12,9 @@ import { createLineLogin } from "../src/linelogin.js";
 const QUOTE = { doable: true, reason: "", title: "เทียบราคาหูฟัง", steps: ["ค้น 3 ร้าน", "เทียบราคา"], size: "M", cost: 0.3 };
 const RESULT = { ok: true, answer: "ร้าน B ถูกสุด ฿8,990", summary: "เจอแล้ว", sources: [{ title: "B", url: "https://b.example/x" }], bestUrl: "", usage: { cost: 3 } };
 
-async function start({ quote = async () => QUOTE, runTask = async () => RESULT, ...opts } = {}) {
+async function start({ quote = async () => QUOTE, runTask = async () => RESULT, saveImages, ...opts } = {}) {
   const store = makeStore(openDb(":memory:"), { startCredit: 20 });
-  const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
+  const runner = createRunner({ store, runTask, screenshot: async () => false, saveImages, evidenceDir: opts.evidenceDir, log: { error() {} } });
   const handle = createWeb({ store, quote, runner, log: { error() {} }, ...opts });
   const server = createServer(async (req, res) => {
     if (!(await handle(req, res))) {
@@ -253,4 +253,27 @@ test("a finished job saves its sites' logos, and /logo/ serves only those files"
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("content-type"), "image/png");
   for (const path of ["/logo/other.example.png", "/logo/..%2Fsecret.png", "/logo/b.example.png/..", "/logo/B.example.png"]) assert.equal((await fetch(base + path)).status, 404, path);
+});
+
+test("product pictures are served like evidence, and deleting the account deletes them", async (t) => {
+  const evidenceDir = mkdtempSync(join(tmpdir(), "smith-"));
+  const name = `1-${"ab".repeat(12)}.jpg`;
+  const saveImages = async (options, dir) => {
+    writeFileSync(join(dir, name), "jpg");
+    options[0].image = `/evidence/${name}`;
+  };
+  const s = await start({ runTask: async () => ({ ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }] }), saveImages, evidenceDir });
+  t.after(s.close);
+  const { body } = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
+  await s.call(A, "POST", `/api/jobs/${body.job.id}/start`);
+  const job = await waitFor(async () => {
+    const r = await s.call(A, "GET", `/api/jobs/${body.job.id}`);
+    return r.body.job.status === "done" && r.body.job;
+  });
+  assert.equal(job.options[0].image, `/evidence/${name}`);
+  const got = await fetch(s.base + job.options[0].image);
+  assert.equal(got.status, 200);
+  assert.equal(got.headers.get("content-type"), "image/jpeg");
+  assert.equal((await s.call(A, "DELETE", "/api/me")).status, 200);
+  assert.equal(existsSync(join(evidenceDir, name)), false, "the picture went with the account");
 });
