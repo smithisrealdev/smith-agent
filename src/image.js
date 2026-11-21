@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import sharp from "sharp";
 import { reachesPublicHost } from "./evidence.js";
 
 // Product pictures for the option cards: the picture each page names for link previews (og:image).
@@ -64,19 +65,25 @@ export function ogImage(html, base) {
   return "";
 }
 
-// Saves the page's preview picture as <dir>/<name>.<ext> and returns the file name, or "" when there is none.
-// shortcut: kept at its original size (up to 1.5 MB) though shown small; resize when mobile data matters.
+// Saves the page's preview picture as <dir>/<name>.jpg and returns the file name, or "" when there is none.
+// Every picture is re-encoded as a JPEG of at most 800x800: small on mobile data, within LINE's 1024px limit,
+// and a format LINE can show (it cannot show WebP). Decoding it also proves the file is a real picture.
 async function productImage(pageUrl, dir, name, deps) {
   const page = await publicFetch(pageUrl, deps);
   if (!page || !/html/i.test(page.res.headers.get("content-type") || "")) return "";
   const src = ogImage((await readBody(page.res, 512_000, true)).toString("utf8"), page.url);
   const img = src && (await publicFetch(src, deps));
   const data = img && /^image\//i.test(img.res.headers.get("content-type") || "") && (await readBody(img.res, 1_500_000));
-  const ext = data ? kindOf(data) : "";
-  if (!ext) return "";
+  if (!data || !kindOf(data)) return "";
+  const jpeg = await sharp(data, { limitInputPixels: 25_000_000 }) // refuses decompression bombs
+    .rotate() // apply the camera's orientation before it is dropped
+    .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+    .flatten({ background: "#FFFFFF" }) // transparent PNGs get a white background, not black
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer();
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `${name}.${ext}`), data);
-  return `${name}.${ext}`;
+  await writeFile(join(dir, `${name}.jpg`), jpeg);
+  return `${name}.jpg`;
 }
 
 // Gives each option whose page has a preview picture an `image` the app can load. Never throws.
