@@ -67,6 +67,12 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
   // Run the agent and report back by push: the reply token has expired by the time the work is done.
   async function work(job) {
     const { job: done, r } = await runner.run(job);
+    return notify(done, r);
+  }
+
+  // The result message in LINE. Web-only accounts have no chat to send it to.
+  async function notify(job, r) {
+    if (!job || job.user_id.startsWith("web:")) return; // no job: the account was deleted while it ran
     const credit = baht(store.user(job.user_id).credit);
     if (!r.ok) {
       return line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\n${r.answer}\nเครดิตเท่าเดิม ${credit}`)]);
@@ -74,7 +80,7 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
     const sources = r.sources.map((s, i) => `${i + 1}. ${s.title}\n${s.url}`);
     const result = [
       `เสร็จแล้ว: ${job.title}`, "", r.answer, "", "หลักฐาน", ...sources, "",
-      `เช็กเมื่อ ${clock()} · จ่าย ${baht(done.price)} · เครดิตเหลือ ${credit}`,
+      `เช็กเมื่อ ${clock()} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`,
     ].join("\n");
     // The quick reply shows only on the last message, so the screenshot goes first.
     const messages = [text(result, [postback("ผลไม่ตรง ขอเงินคืน", `refund:${job.id}`)])];
@@ -104,5 +110,5 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
     }
   }
 
-  return { handle, work, notifyRestart };
+  return { handle, work, notify, notifyRestart };
 }

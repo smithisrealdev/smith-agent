@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { openDb, makeStore } from "../src/db.js";
 import { createRunner } from "../src/runner.js";
 import { createWeb } from "../src/web.js";
+import { createLineLogin } from "../src/linelogin.js";
 
 const QUOTE = { doable: true, reason: "", title: "เทียบราคาหูฟัง", steps: ["ค้น 3 ร้าน", "เทียบราคา"], size: "M", cost: 0.3 };
 const RESULT = { ok: true, answer: "ร้าน B ถูกสุด ฿8,990", summary: "เจอแล้ว", sources: [{ title: "B", url: "https://b.example/x" }], bestUrl: "", usage: { cost: 3 } };
@@ -151,4 +152,53 @@ test("deleting the account removes the user's jobs and credit history", async (t
   const db = s.store;
   assert.equal(db.jobsOf((await s.call(A, "GET", "/api/me")).body.id).length, 0);
   assert.deepEqual((await s.call(A, "GET", "/api/ledger")).body.entries.map((e) => e.kind), ["start"], "a fresh account");
+});
+
+test("with LINE Login on, a phone must sign in, and the account follows the LINE user to another phone", async (t) => {
+  const fetchImpl = async (url) => ({ ok: true, status: 200, json: async () => (url.endsWith("/token") ? { id_token: "idt" } : { sub: "U77", aud: "165" }) });
+  const lineLogin = createLineLogin({ channelId: "165", channelSecret: "s", callbackUrl: "https://smith.example/auth/line/callback", fetchImpl });
+  const notified = [];
+  const s = await start({ lineLogin, notify: async (job, r) => notified.push([job.id, job.user_id, r.ok]) });
+  t.after(s.close);
+  const signIn = async (token) => {
+    const { body } = await s.call(token, "POST", "/api/auth/line");
+    const state = new URL(body.url).searchParams.get("state");
+    return fetch(`${s.base}/auth/line/callback?code=abc&state=${state}`, { redirect: "manual" });
+  };
+
+  assert.deepEqual((await s.call(A, "GET", "/api/me")).body, { error: "login" });
+  assert.equal((await s.call(A, "POST", "/api/quote", { text: "x" })).status, 401);
+  const back = await signIn(A);
+  assert.equal(back.status, 302);
+  assert.equal(back.headers.get("location"), "/#/");
+  const me = await s.call(A, "GET", "/api/me");
+  assert.deepEqual(me.body, { id: "U77", credit: 20, login: "line" });
+
+  const { body } = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
+  await s.call(A, "POST", `/api/jobs/${body.job.id}/start`);
+  await waitFor(async () => (await s.call(A, "GET", `/api/jobs/${body.job.id}`)).body.job.status === "done");
+  await waitFor(async () => notified.length === 1);
+  assert.deepEqual(notified, [[body.job.id, "U77", true]], "the result also goes to the LINE chat");
+
+  await signIn(B);
+  assert.deepEqual((await s.call(B, "GET", "/api/jobs")).body.jobs.map((j) => j.id), [body.job.id], "same account on the second phone");
+  assert.equal((await s.call(B, "GET", "/api/me")).body.credit, 11);
+
+  assert.equal((await s.call(A, "POST", "/api/logout")).status, 200);
+  assert.equal((await s.call(A, "GET", "/api/me")).status, 401, "signed out on phone A");
+  assert.equal((await s.call(B, "GET", "/api/me")).status, 200, "phone B stays signed in");
+
+  const cancelled = await fetch(`${s.base}/auth/line/callback?error=access_denied&state=x`, { redirect: "manual" });
+  assert.equal(cancelled.headers.get("location"), "/#/login?e=1");
+
+  assert.equal((await s.call(B, "DELETE", "/api/me")).status, 200);
+  assert.equal((await s.call(B, "GET", "/api/me")).status, 401, "deleting the account ends every session");
+});
+
+test("without LINE Login there is no sign-in route", async (t) => {
+  const s = await start();
+  t.after(s.close);
+  assert.equal((await s.call(A, "POST", "/api/auth/line")).status, 404);
+  assert.equal((await fetch(`${s.base}/auth/line/callback?code=a&state=b`)).status, 404);
+  assert.equal((await s.call(A, "GET", "/api/me")).body.login, null);
 });

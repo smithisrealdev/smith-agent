@@ -80,6 +80,8 @@
     trash: '<path d="M3.5 5.5h13M8 5.5V3.5h4v2M5.5 5.5l.8 11.5h7.4l.8-11.5"/>',
     list: '<path d="M7 5.5h10M7 10h10M7 14.5h10M3.5 5.5h.5M3.5 10h.5M3.5 14.5h.5"/>',
     lock: '<rect x="4" y="9" width="12" height="8.5" rx="2"/><path d="M6.8 9V6.5a3.2 3.2 0 016.4 0V9"/>',
+    chat: '<path d="M10 3.5c4.4 0 7.5 2.6 7.5 5.8 0 3.4-3.6 6-7.6 7.7.3-.8.4-1.6.3-2C5.7 14.6 2.5 12.3 2.5 9.3 2.5 6.1 5.6 3.5 10 3.5z"/>',
+    logout: '<path d="M8 3.5H4.5v13H8M12.5 6.5L16 10l-3.5 3.5M16 10H7.5"/>',
   };
   const svg = (d, size = 20, sw = 2.2) =>
     `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -91,6 +93,7 @@
   let poller;
 
   class InviteNeeded extends Error {}
+  class LoginNeeded extends Error {}
   async function api(method, path, body) {
     let res;
     try {
@@ -104,6 +107,7 @@
     }
     const data = await res.json().catch(() => ({}));
     if (res.status === 403 && data.error === "invite") throw new InviteNeeded();
+    if (res.status === 401 && data.error === "login") throw new LoginNeeded();
     return { ok: res.ok, status: res.status, data };
   }
 
@@ -169,7 +173,7 @@
         <span>ใช้คำสั่งและผลงานเพื่อทำงานให้คุณ ไม่ขายข้อมูลให้ใคร และลบบัญชีพร้อมข้อมูลทั้งหมดได้เองในหน้าตั้งค่า</span>
         <span>คำสั่งและหน้าเว็บที่ Agent อ่าน จะส่งไปประมวลผลกับผู้ให้บริการ AI ในต่างประเทศ ภายใต้สัญญาที่ห้ามนำไปฝึก AI</span></span></div>
       <div class="note">${I.lock}<span>อย่าพิมพ์รหัสผ่าน เลขบัตร หรือ OTP ลงในคำสั่ง Smith ไม่ต้องใช้ข้อมูลเหล่านี้</span></div>
-      <a class="link-btn" href="#/help" style="align-self:center">อ่านเรื่องข้อมูลส่วนตัวเพิ่ม</a>
+      <a class="link-btn" href="#/privacy" style="align-self:center">อ่านนโยบายความเป็นส่วนตัว</a>
       <div class="grow"></div>
       <button class="btn" data-act="consent">ยอมรับและไปต่อ</button>`);
   }
@@ -183,6 +187,44 @@
       <div class="grow"></div>
       <button class="btn" data-act="invite">ไปต่อ</button>`);
   }
+
+  // ---------- sign in (only when the server has LINE Login set up)
+  function login() {
+    const failed = location.hash.includes("e=1");
+    render(`<div class="grow"></div>
+      <div class="center" style="gap:12px"><div class="mascot" style="min-height:140px">${M.idle || ""}</div>
+        <h1>ยินดีต้อนรับสู่ Smith</h1><p class="muted" style="font-size:16px;line-height:1.5">เข้าสู่ระบบเพื่อสั่งงาน<br>แล้วรับผลเข้าแชท LINE ของคุณ</p></div>
+      ${failed ? '<p role="alert" class="small" style="color:var(--rtxt);text-align:center">เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง</p>' : ""}
+      <div class="grow"></div>
+      <button class="btn line" data-act="line-login">${I.chat}เข้าสู่ระบบด้วย LINE</button>
+      <p class="small muted" style="text-align:center;line-height:1.6">การเข้าสู่ระบบถือว่าคุณยอมรับ <a href="#/terms">เงื่อนไขการใช้งาน</a><br>และ <a href="#/privacy">นโยบายความเป็นส่วนตัว</a></p>`);
+  }
+
+  // Draft legal text for the invite-only test, written from what the system actually does. A lawyer must review it before launch.
+  const UPDATED = "ฉบับร่างสำหรับช่วงทดลอง · ปรับปรุงล่าสุด 21 พ.ย. 2569";
+  const PRIVACY = [
+    ["ข้อมูลที่เราเก็บ", ["คำสั่งงาน ผลงาน ลิงก์และภาพหน้าจอที่ใช้เป็นหลักฐาน", "ประวัติเครดิต และเหตุผลที่คุณขอเงินคืน", "รหัสบัญชี LINE ของคุณ เมื่อเข้าสู่ระบบด้วย LINE", "รหัสอุปกรณ์แบบสุ่ม ซึ่งเราเก็บเฉพาะค่าที่เข้ารหัสทางเดียวแล้ว"]],
+    ["ข้อมูลที่เราไม่เก็บ", ["รหัสผ่าน เลขบัตรประชาชน ข้อมูลบัตรเครดิต หรือรหัส OTP Smith ไม่ต้องใช้ข้อมูลเหล่านี้ อย่าพิมพ์ลงในคำสั่ง"]],
+    ["เราใช้ข้อมูลทำอะไร", ["ทำงานตามคำสั่งของคุณ และส่งผลให้คุณ (ฐานสัญญา)", "คิดเครดิตและคืนเครดิต", "ป้องกันการใช้งานผิดวัตถุประสงค์ และปรับปรุงบริการจากสถิติรวม (ฐานประโยชน์โดยชอบด้วยกฎหมาย)"]],
+    ["ใครได้รับข้อมูล", ["ผู้ให้บริการ AI (Anthropic สหรัฐอเมริกา) ประมวลผลคำสั่งและหน้าเว็บที่ Agent อ่าน ภายใต้สัญญาที่ห้ามนำไปฝึก AI", "LINE เมื่อคุณเข้าสู่ระบบหรือรับผลงานทาง LINE", "ผู้ให้บริการเซิร์ฟเวอร์ที่ Smith ใช้", "เราไม่ขายข้อมูลให้ใคร"]],
+    ["เก็บนานแค่ไหน", ["เก็บจนกว่าคุณจะลบบัญชี ซึ่งทำได้เองทันทีในหน้าตั้งค่า งาน หลักฐาน และประวัติเครดิตจะถูกลบทั้งหมด", "เมื่อจบช่วงทดลอง เราอาจลบข้อมูลทั้งหมดของช่วงทดลอง"]],
+    ["สิทธิ์ของคุณ", ["ขอดูหรือขอสำเนาข้อมูล ขอแก้ไข ขอลบ และคัดค้านการใช้ข้อมูล", "ร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (สคส.) ได้"]],
+    ["ความปลอดภัย", ["ภาพหลักฐานตั้งชื่อแบบสุ่มที่เดาไม่ได้", "ทีมงานเข้าถึงข้อมูลเฉพาะเท่าที่จำเป็นต่อการดูแลบริการ"]],
+  ];
+  const TERMS = [
+    ["Smith ทำอะไร", ["Agent ค้น เทียบ และสรุปข้อมูลจากเว็บไซต์สาธารณะตามคำสั่งของคุณ", "Smith ไม่จ่ายเงิน ไม่ล็อกอิน และไม่จองแทนคุณ"]],
+    ["ราคาและเครดิต", ["Smith บอกราคาก่อนเริ่มทุกงาน และหักเครดิตไม่เกินราคานั้น", "งานที่ทำไม่สำเร็จไม่คิดเงิน", "เครดิตใช้ได้เฉพาะใน Smith แลกเป็นเงินสดไม่ได้ และหายไปเมื่อลบบัญชี"]],
+    ["การขอเงินคืน", ["ขอได้ภายใน 24 ชั่วโมงหลังได้ผลงาน คืนเป็นเครดิตอัตโนมัติเดือนละ 3 ครั้ง เกินนั้นทีมงานตรวจให้ภายใน 1 วันทำการ"]],
+    ["ความถูกต้องของข้อมูล", ["ข้อมูลมาจากเว็บไซต์ภายนอก ราคาและรายละเอียดเปลี่ยนได้ตลอด ตรวจกับเว็บต้นทางก่อนตัดสินใจทุกครั้ง", "ความรับผิดของ Smith ต่องานหนึ่งงาน จำกัดไม่เกินค่าบริการของงานนั้น เท่าที่กฎหมายอนุญาต"]],
+    ["สิ่งที่ห้ามทำ", ["สั่งงานที่ผิดกฎหมาย ละเมิดสิทธิ์ผู้อื่น หรือส่งสแปม", "พยายามรับเครดิตฟรีหรือขอเงินคืนโดยไม่สุจริต", "ทีมงานระงับบัญชีที่ทำผิดเงื่อนไขได้"]],
+    ["การเปลี่ยนแปลง", ["เราจะแจ้งในแอปก่อนเงื่อนไขใหม่มีผล เงื่อนไขนี้ใช้กฎหมายไทย"]],
+  ];
+  const legal = (title, sections) => () =>
+    render(`<div class="topbar"><button class="icon-btn" data-act="back" aria-label="กลับ">${I.back}</button><div class="title">${title}</div><span class="gap44"></span></div>
+      <div class="note warn">${I.info}<span>${UPDATED}</span></div>
+      ${sections.map(([h, items]) => `<div class="sect">${h}</div><div class="card pad col">${items.map((t) => `<p style="line-height:1.55">${t}</p>`).join("")}</div>`).join("")}`);
+  const privacy = legal("นโยบายความเป็นส่วนตัว", PRIVACY);
+  const terms = legal("เงื่อนไขการใช้งาน", TERMS);
 
   // ---------- home
   const TEMPLATES = [
@@ -387,9 +429,10 @@
       `<a class="item" href="${href}"><span class="tile ${tone}">${I[ic]}</span><span class="grow t" style="font-weight:500">${label}</span>${right}${I.chev}</a>`;
     render(`${topbar("ตั้งค่า")}
       <div class="card list">${row("#/wallet", "wallet", "เครดิต", `<span class="money">${baht(me.credit)}</span>`)}${row("#/history", "list", "งานทั้งหมด")}${row("#/help", "help", "ช่วยเหลือและข้อมูลส่วนตัว")}</div>
+      ${me.login ? `<div class="card list"><button class="item" data-act="logout" style="width:100%;text-align:left"><span class="tile">${I.logout}</span><span class="grow t" style="font-weight:500">ออกจากระบบ</span></button></div>` : ""}
       <div class="card list">${row("#/delete", "trash", "ลบบัญชีและข้อมูลทั้งหมด", "", "bad")}</div>
       <div class="grow"></div>
-      <p class="small muted" style="text-align:center">Smith Agent รุ่นทดลอง · รหัส ${esc(me.id.slice(4, 12))}</p>`);
+      <p class="small muted" style="text-align:center">Smith Agent รุ่นทดลอง · รหัส ${esc(me.id.replace(/^web:/, "").slice(0, 8))}</p>`);
   }
 
   const FAQ = [
@@ -404,7 +447,8 @@
     render(`${topbar("ช่วยเหลือ", saved.get("consent") ? "#/settings" : "#/consent")}
       <div class="sect">คำถามที่พบบ่อย</div>
       <div class="card" style="padding:0 16px">${FAQ.map(([q, a]) => `<details class="faq"><summary>${q}${I.chevd}</summary><p>${a}</p></details>`).join("")}</div>
-      <div class="note bad"><span class="col" style="gap:8px"><b>Smith ทำอะไรไม่ได้</b>${cant.map((t) => `<span class="row" style="gap:8px">${I.x}${t}</span>`).join("")}</span></div>`);
+      <div class="note bad"><span class="col" style="gap:8px"><b>Smith ทำอะไรไม่ได้</b>${cant.map((t) => `<span class="row" style="gap:8px">${I.x}${t}</span>`).join("")}</span></div>
+      <div class="row" style="justify-content:center;gap:16px"><a class="link-btn" href="#/privacy">นโยบายความเป็นส่วนตัว</a><a class="link-btn" href="#/terms">เงื่อนไขการใช้งาน</a></div>`);
   }
 
   function deleteScreen() {
@@ -523,6 +567,20 @@
       toast("ลบบัญชีและข้อมูลทั้งหมดแล้ว");
       go("#/welcome");
     },
+    async "line-login"(_, btn) {
+      busy(btn, "กำลังไปที่ LINE");
+      const r = await api("POST", "/api/auth/line");
+      if (!r.ok) return toast("ยังเข้าสู่ระบบด้วย LINE ไม่ได้ ลองใหม่อีกครั้ง"), login();
+      location.href = r.data.url;
+    },
+    async logout(_, btn) {
+      busy(btn);
+      await api("POST", "/api/logout");
+      token = newToken(); // a fresh device token: the old one stays unlinked on the server
+      saved.set("token", token);
+      go("#/login");
+    },
+    back: () => window.history.back(), // `history` here is the job-list screen
     reload: () => route(),
   };
 
@@ -534,6 +592,7 @@
       await actions[el.dataset.act]?.(el.dataset.arg === undefined ? undefined : Number(el.dataset.arg), el);
     } catch (err) {
       if (err instanceof InviteNeeded) return go("#/invite");
+      if (err instanceof LoginNeeded) return go("#/login");
       toast(err.message === "offline" ? "เชื่อมต่อไม่ได้ เช็กอินเทอร์เน็ตแล้วลองใหม่" : "ระบบขัดข้อง ลองใหม่อีกครั้ง");
       route();
     }
@@ -555,6 +614,9 @@
     [/^#\/welcome$/, welcome],
     [/^#\/consent$/, consent],
     [/^#\/invite$/, invite],
+    [/^#\/login(\?e=1)?$/, login],
+    [/^#\/privacy$/, privacy],
+    [/^#\/terms$/, terms],
     [/^#\/quote\/(\d+)$/, quoteScreen],
     [/^#\/job\/(\d+)$/, jobScreen],
     [/^#\/refund\/(\d+)$/, refundScreen],
@@ -568,7 +630,7 @@
   async function route() {
     clearTimeout(poller);
     const hash = location.hash;
-    if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite)$/.test(hash)) return go("#/welcome");
+    if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite|privacy|terms|login)/.test(hash)) return go("#/welcome");
     const hit = ROUTES.find(([re]) => re.test(hash));
     if (!hit) return go("#/");
     const arg = hit[0].exec(hash)[1];
@@ -577,6 +639,7 @@
       window.scrollTo(0, 0);
     } catch (err) {
       if (err instanceof InviteNeeded) return go("#/invite");
+      if (err instanceof LoginNeeded) return go("#/login");
       render(errorView(err));
     }
   }

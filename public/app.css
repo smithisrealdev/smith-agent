@@ -40,6 +40,7 @@ p { margin: 0; }
 .btn { flex: none; width: 100%; height: 56px; border-radius: 28px; background: var(--blue); color: #FFFFFF; font-family: "Mitr", sans-serif; font-weight: 600; font-size: 18px; display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
 .btn.second { height: 52px; border-radius: 26px; background: var(--soft); color: var(--blue); font-family: "Prompt", sans-serif; font-size: 16px; }
 .btn.danger { background: var(--rtxt); }
+.btn.line { background: #06C755; } /* LINE's brand green, as LINE asks for its login button */
 .btn.text-danger { height: 48px; background: transparent; color: var(--rtxt); font-family: "Prompt", sans-serif; font-size: 15px; }
 .btn:disabled { background: var(--line); color: #5F6B8A; cursor: default; }
 .btn.busy { opacity: .75; }

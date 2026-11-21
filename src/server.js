@@ -7,16 +7,24 @@ import { screenshot } from "./evidence.js";
 import { createRunner } from "./runner.js";
 import { createBot } from "./bot.js";
 import { createWeb } from "./web.js";
+import { createLineLogin } from "./linelogin.js";
 
 const store = makeStore(openDb(config.dbPath), config);
 const runner = createRunner({ store, runTask, screenshot, evidenceDir: config.evidenceDir });
-const web = createWeb({ store, quote, runner, evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour });
 const bot = config.lineSecret && config.lineToken
   ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl })
   : null;
+const lineLogin = config.lineLoginId && config.lineLoginSecret && config.publicUrl
+  ? createLineLogin({ channelId: config.lineLoginId, channelSecret: config.lineLoginSecret, callbackUrl: `${config.publicUrl}/auth/line/callback` })
+  : null;
+const web = createWeb({
+  store, quote, runner, lineLogin, notify: bot?.notify,
+  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour,
+});
 
 if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");
 if (!bot) console.log("LINE is off (LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN not set): serving the web app only.");
+console.log(lineLogin ? `Web sign-in: LINE Login (callback ${config.publicUrl}/auth/line/callback)` : "Web sign-in: none, each phone is its own account (set LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET and PUBLIC_URL to require LINE).");
 
 const send = (res, status, body = "") => {
   res.writeHead(status, { "Content-Type": "text/plain" });

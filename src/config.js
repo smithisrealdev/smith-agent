@@ -8,6 +8,8 @@ export const config = {
   evidenceDir: env.EVIDENCE_DIR || "data/evidence",
   lineSecret: env.LINE_CHANNEL_SECRET || "",
   lineToken: env.LINE_CHANNEL_ACCESS_TOKEN || "",
+  lineLoginId: env.LINE_LOGIN_CHANNEL_ID || "", // with its secret and PUBLIC_URL, the web app requires signing in with LINE
+  lineLoginSecret: env.LINE_LOGIN_CHANNEL_SECRET || "",
   model: env.SMITH_MODEL || "claude-opus-5-5",
   startCredit: Number(env.START_CREDIT || 20), // "first job free, up to ฿20" from the design
   usdThb: Number(env.USD_THB || 36),

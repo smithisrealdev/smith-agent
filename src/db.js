@@ -29,6 +29,11 @@ export function openDb(path) {
       kind TEXT NOT NULL,      -- start | grant | hold | release | refund
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS sessions (
+      key TEXT PRIMARY KEY,     -- hash of the phone's random token
+      user_id TEXT NOT NULL,    -- the LINE user it signed in as
+      created_at TEXT NOT NULL
+    );
   `);
   return db;
 }
@@ -155,6 +160,9 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     jobsOf: (userId, limit = 50) => db.prepare("SELECT * FROM jobs WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit),
     ledgerOf: (userId, limit = 50) =>
       db.prepare("SELECT l.amount, l.kind, l.created_at, j.title FROM ledger l LEFT JOIN jobs j ON j.id = l.job_id WHERE l.user_id = ? ORDER BY l.id DESC LIMIT ?").all(userId, limit),
+    sessionUser: (key) => one("SELECT user_id FROM sessions WHERE key = ?", key)?.user_id ?? null,
+    signIn: (key, userId) => run("INSERT OR REPLACE INTO sessions (key, user_id, created_at) VALUES (?, ?, ?)", key, userId, iso()),
+    signOut: (key) => run("DELETE FROM sessions WHERE key = ?", key),
     quotesSince: (userId, since) => one("SELECT COUNT(*) AS n FROM jobs WHERE user_id = ? AND created_at >= ?", userId, since).n,
 
     // PDPA: delete everything about a user. Returns their evidence files so those can go too.
@@ -164,6 +172,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         run("DELETE FROM jobs WHERE user_id = ?", userId);
         run("DELETE FROM ledger WHERE user_id = ?", userId);
         run("DELETE FROM users WHERE id = ?", userId);
+        run("DELETE FROM sessions WHERE user_id = ?", userId);
         return files;
       });
     },

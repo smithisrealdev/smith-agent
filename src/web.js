@@ -33,16 +33,22 @@ export function jobView(j) {
   };
 }
 
-// The phone app's API. A device keeps a random token; the server only stores its hash as the user id.
-export function createWeb({ store, quote, runner, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, now = () => new Date(), log = console }) {
+// The phone app's API. A phone keeps a random token and the server stores only its hash (the "key").
+// Without LINE Login the key is the account; with it, the key must be signed in to a LINE user first.
+export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, now = () => new Date(), log = console }) {
   const json = (res, status, body) => {
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     res.end(JSON.stringify(body));
     return true;
   };
-  const userOf = (req) => {
+  const keyOf = (req) => {
     const m = /^Bearer ([A-Za-z0-9_-]{20,100})$/.exec(req.headers.authorization || "");
-    return m ? `web:${createHash("sha256").update(m[1]).digest("hex").slice(0, 32)}` : null;
+    return m ? createHash("sha256").update(m[1]).digest("hex").slice(0, 32) : null;
+  };
+  const redirect = (res, location) => {
+    res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
+    res.end();
+    return true;
   };
   const body = async (req) => {
     const chunks = [];
@@ -79,7 +85,7 @@ export function createWeb({ store, quote, runner, publicDir = "public", evidence
     const m = /^\/api\/jobs\/(\d+)(?:\/(start|cancel|refund))?$/.exec(path);
     const id = m && Number(m[1]);
 
-    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId) });
+    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null });
 
     if (req.method === "DELETE" && path === "/api/me") {
       for (const file of store.deleteUser(userId)) await rm(join(evidenceDir, basename(file)), { force: true });
@@ -110,7 +116,8 @@ export function createWeb({ store, quote, runner, publicDir = "public", evidence
       if (m[2] === "start") {
         const r = store.start(userId, id);
         if (!r.ok) return json(res, 409, { error: r.reason, credit: credit(userId) });
-        runner.run(r.job).catch((err) => log.error("job failed", id, err)); // the app polls the job for the result
+        // The app polls the job for the result; LINE users also get it in their chat.
+        runner.run(r.job).then((done) => notify?.(done.job, done.r)).catch((err) => log.error("job failed", id, err));
         return json(res, 200, { job: jobView(r.job), credit: credit(userId) });
       }
       if (m[2] === "cancel") return json(res, 200, { ok: store.cancel(userId, id) });
@@ -124,8 +131,25 @@ export function createWeb({ store, quote, runner, publicDir = "public", evidence
   }
 
   // Returns true when it answered the request.
+  // LINE sends the browser back here after sign-in (or after the user cancels).
+  async function lineCallback(res, q) {
+    try {
+      if (q.get("error")) throw new Error(`LINE said ${q.get("error")}`);
+      const { key, userId } = await lineLogin.finish(q.get("state") || "", q.get("code") || "");
+      store.user(userId);
+      store.signIn(key, userId);
+      return redirect(res, "/#/");
+    } catch (err) {
+      log.error("LINE login failed:", err.message);
+      return redirect(res, "/#/login?e=1");
+    }
+  }
+
   return async function handle(req, res) {
-    const path = new URL(req.url, "http://local").pathname;
+    const url = new URL(req.url, "http://local");
+    const path = url.pathname;
+
+    if (req.method === "GET" && path === "/auth/line/callback" && lineLogin) return lineCallback(res, url.searchParams);
 
     if (req.method === "GET" && !path.startsWith("/api/")) {
       const evidence = /^\/evidence\/(\d+-[0-9a-f]{24}\.png)$/.exec(path);
@@ -137,8 +161,15 @@ export function createWeb({ store, quote, runner, publicDir = "public", evidence
 
     // While testing with people outside the team, an invite code keeps strangers from spending your Claude credit.
     if (inviteCode && req.headers["x-invite"] !== inviteCode) return json(res, 403, { error: "invite" });
-    const userId = userOf(req);
-    if (!userId) return json(res, 401, { error: "auth" });
+    const key = keyOf(req);
+    if (!key) return json(res, 401, { error: "auth" });
+    if (req.method === "POST" && path === "/api/auth/line") return lineLogin ? json(res, 200, { url: lineLogin.start(key) }) : json(res, 404, { error: "not_found" });
+    if (req.method === "POST" && path === "/api/logout") {
+      store.signOut(key);
+      return json(res, 200, { ok: true });
+    }
+    const userId = lineLogin ? store.sessionUser(key) : `web:${key}`;
+    if (!userId) return json(res, 401, { error: "login" });
     try {
       return await api(req, res, path, userId);
     } catch (err) {
