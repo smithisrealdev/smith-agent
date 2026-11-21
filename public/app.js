@@ -108,8 +108,8 @@
   }
 
   // ---------- shared pieces
-  const topbar = (title, back = "#/") =>
-    `<div class="topbar"><a class="icon-btn" href="${back}" aria-label="กลับ">${I.back}</a><div class="title">${esc(title)}</div><span class="gap44"></span></div>`;
+  const topbar = (title, back = "#/", right = '<span class="gap44"></span>') =>
+    `<div class="topbar"><a class="icon-btn" href="${back}" aria-label="กลับ">${I.back}</a><div class="title">${esc(title)}</div>${right}</div>`;
   const STATUS = {
     quoted: ["รอเริ่ม", "grey", "clock"],
     running: ["กำลังทำ", "", "bolt"],
@@ -380,7 +380,9 @@
   };
   function doneView(j, credit) {
     const refundable = j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3;
-    return `${topbar(j.title)}
+    // The phone reads the result aloud (its own Thai voice): for hands-busy moments and for people who find reading hard.
+    const listen = "speechSynthesis" in window ? `<button class="icon-btn" data-act="speak" aria-label="ฟังผลงาน" aria-pressed="false">${I.speaker}</button>` : undefined;
+    return `${topbar(j.title, "#/", listen)}
       <div class="center"><div class="mascot">${M.done || ""}${SPARKS}</div><h1 role="status">เสร็จแล้ว!</h1></div>
       ${j.status === "refunded" ? `<div class="note good">${I.check}<span>คืนเงิน ${baht(j.price)} เป็นเครดิตแล้ว</span></div>` : ""}
       ${j.status === "refund_review" ? `<div class="note warn">${I.clock}<span>ทีมงานกำลังตรวจคำขอคืนเงิน ภายใน 1 วันทำการ</span></div>` : ""}
@@ -508,8 +510,17 @@
   // Settings kept on this phone. Both are on unless switched off.
   const PREFS = [["motion", "sparkle", "ภาพเคลื่อนไหว"], ["pictures", "image", "รูปสินค้าและโลโก้"]];
   const pref = (key) => (saved.get("prefs") || {})[key] !== false;
-  const applyPrefs = () => document.documentElement.classList.toggle("calm", !pref("motion"));
+  const THEMES = [["auto", "ตามระบบ"], ["light", "สว่าง"], ["dark", "มืด"]];
+  const theme = () => (saved.get("prefs") || {}).theme || "auto";
+  const systemDark = matchMedia("(prefers-color-scheme: dark)");
+  function applyPrefs() {
+    const root = document.documentElement;
+    root.classList.toggle("calm", !pref("motion"));
+    root.dataset.theme = theme() === "dark" || (theme() === "auto" && systemDark.matches) ? "dark" : "light";
+    document.querySelector('meta[name="theme-color"]').content = root.dataset.theme === "dark" ? "#0B1020" : "#FFFFFF";
+  }
   applyPrefs();
+  systemDark.addEventListener("change", applyPrefs);
 
   // Settings open as a sheet over home, so home is shown first when it is not already there.
   async function settings() {
@@ -520,6 +531,8 @@
     const row = (href, ic, label, right = "", tone = "") =>
       `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}</span><span class="grow t">${label}</span>${right}${I.chev}</a>`;
     openSheet("ตั้งค่า", `<div class="list">${row("#/wallet", "wallet", "เครดิต", `<span class="money">${baht(me.credit)}</span>`)}${row("#/history", "list", "งานทั้งหมด")}${row("#/help", "help", "ช่วยเหลือและข้อมูลส่วนตัว")}
+        <div class="item" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px 0"><span class="t" id="theme-label">ธีม</span>
+          <div class="seg" role="group" aria-labelledby="theme-label" style="--i:${THEMES.findIndex(([k]) => k === theme())}">${THEMES.map(([k, label], i) => `<button data-act="theme" data-arg="${i}" aria-pressed="${k === theme()}">${label}</button>`).join("")}</div></div>
         ${PREFS.map(([key, ic, label], i) => `<div class="item"><span class="tile">${D[ic]}</span><span class="grow t" id="pref-${key}">${label}</span>
           <button class="switch" role="switch" aria-checked="${pref(key)}" aria-labelledby="pref-${key}" data-act="toggle" data-arg="${i}"></button></div>`).join("")}
         ${me.login ? `<button class="item" data-act="logout" style="width:100%;text-align:left"><span class="tile">${D.logout}</span><span class="grow t">ออกจากระบบ</span></button>` : ""}
@@ -685,6 +698,28 @@
       btn.setAttribute("aria-checked", String(prefs[PREFS[i][0]]));
       applyPrefs();
     },
+    theme(i, btn) {
+      saved.set("prefs", { ...saved.get("prefs"), theme: THEMES[i][0] });
+      btn.parentElement.style.setProperty("--i", i);
+      for (const b of btn.parentElement.children) b.setAttribute("aria-pressed", String(b === btn));
+      applyPrefs();
+    },
+    speak(_, btn) {
+      const synth = window.speechSynthesis;
+      if (synth.speaking) return synth.cancel(); // its "end" event below puts the button back
+      const j = state.job;
+      const lines = [j.title, j.answer, ...j.options.map((o, i) => `ตัวเลือกที่ ${i + 1} ${o.name} ${o.price} ${o.note}`)];
+      const say = new SpeechSynthesisUtterance(lines.join(". ").replace(/฿\s?([\d,.]+)/g, "$1 บาท"));
+      say.lang = "th-TH";
+      const show = (on) => {
+        btn.innerHTML = on ? I.stop : I.speaker;
+        btn.setAttribute("aria-label", on ? "หยุดอ่าน" : "ฟังผลงาน");
+        btn.setAttribute("aria-pressed", String(on));
+      };
+      say.onstart = () => show(true);
+      say.onend = say.onerror = () => show(false);
+      synth.speak(say);
+    },
     "close-sheet": closeSheet,
     back: () => window.history.back(), // `history` here is the job-list screen
     reload: () => route(),
@@ -795,6 +830,7 @@
   ];
   async function route() {
     gen++;
+    window.speechSynthesis?.cancel(); // leaving a screen stops it being read aloud
     clearTimeout(poller);
     const hash = location.hash;
     if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite|privacy|terms|login)/.test(hash)) return go("#/welcome");

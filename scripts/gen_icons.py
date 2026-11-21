@@ -7,7 +7,7 @@ NAMES = {  # the app's name -> Phosphor's name
     "check": "check", "x": "x", "clock": "clock", "bolt": "lightning", "refund": "arrow-u-up-left", "info": "info",
     "link": "globe-simple", "external": "arrow-square-out", "receipt": "receipt", "shield": "shield-check",
     "plane": "airplane-tilt", "tag": "tag", "doc": "newspaper", "food": "fork-knife", "help": "question",
-    "trash": "trash", "list": "list-bullets", "lock": "lock", "logout": "sign-out", "sparkle": "sparkle", "image": "image",
+    "trash": "trash", "list": "list-bullets", "lock": "lock", "logout": "sign-out", "sparkle": "sparkle", "image": "image", "speaker": "speaker-high", "stop": "stop",
 }
 FILL = {**NAMES, "check": "check-circle", "x": "x-circle", "refund": "arrow-counter-clockwise"}  # fuller shapes read better inside a tile
 inner = lambda f: re.search(r"<svg[^>]*>(.*)</svg>", f.read_text(), re.S).group(1)
