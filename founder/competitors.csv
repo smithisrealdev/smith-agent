@@ -1,0 +1,10 @@
+name,type,url,location_or_channel,price_of_comparable_item,what_it_sells,positioning_line,rating,review_count,source_date
+ChatGPT (OpenAI),direct,https://openai.com/index/chatgpt-shopping-research,แอปและเว็บ ใช้ได้ในไทย,"ฟรี (shopping research เปิดให้แผน Free/Go/Plus/Pro); Go ฿259/เดือน; Plus ฿699/เดือน",ผู้ช่วย AI ทั่วไป มีฟีเจอร์ค้นและเทียบสินค้า,ไม่ได้เปิดหน้าเว็บอ่านเอง,,,2026-11-07
+Google AI Mode / Gemini,direct,https://blog.google/intl/th-th/products/consumer-products/ai-mode/,Google Search และแอป Gemini รองรับภาษาไทย,"ไม่พบราคาของ AI Mode ในผลค้นหา; Google AI Plus ฿189/เดือน (โปรเปิดตัว ฿95 นาน 6 เดือน)",ค้นหาด้วย AI ใน Google Search; Deep Research ใน Gemini,ไม่ได้เปิดหน้าเว็บอ่านเอง,,,2025-10-08
+Perplexity,direct,https://gptprompts.ai/llm-pricing-2026,แอปและเว็บ,"Pro ประมาณ $20/เดือน (แหล่งรอง ไม่พบราคาเป็นบาท)",เครื่องมือค้นหาที่ตอบพร้อมแหล่งอ้างอิง,ไม่ได้เปิดหน้าเว็บอ่านเอง,,,2026
+Manus,direct,https://www.nocode.mba/articles/manus-ai-pricing,เว็บและแอป,"ฟรี 300 เครดิต/วัน (สูงสุด 1,500/เดือน); Pro $20/เดือน ได้ 4,000 เครดิต",Agent ทำงานหลายขั้นเอง คิดเป็นเครดิตตามที่ใช้,ไม่ได้เปิดหน้าเว็บอ่านเอง,1.2/5 (Trustpilot ตามแหล่งรอง),210+,2026-10
+Genspark,direct,https://academy.techpresso.co/reviews/is-genspark-worth-it,เว็บและแอป,"Plus $24.99/เดือน ได้ 10,000 เครดิต",Agent ค้นคว้าและสร้างเอกสาร คิดเป็นเครดิต,ไม่ได้เปิดหน้าเว็บอ่านเอง,,,2026
+Alisa AI,direct,https://alisamaid.com/docs/alisa-feature-and-premium-subscription/,LINE (ไทย),"Premium ฿420/เดือน; ฿220/เดือนผ่าน AIS; 120 คำสั่ง/ชม.","แชทบอท AI ภาษาไทย เน้นเขียน วาดรูป สร้างวิดีโอ","Ai วาดรูป, Ai สร้างวิดีโอ, Ai Chatbot, Generative AI ไทย ใช้ง่ายคล้ายคุยกับคน!",,,2026
+AIS AISpace,indirect,https://droidsans.com/ais-aispace-package/,ค่ายมือถือ AIS,เริ่ม ฿220/เดือน,แพ็กเกจรวม AI หลายเจ้าจ่ายทีเดียว,"รวมแพ็กเกจ AI ระดับโลกสุดคุ้ม จ่ายทีเดียวได้ใช้หลายโมเดล ครบจบที่เดียว",,,2026
+Priceza,indirect,https://www.wikipedia.org/wiki/Priceza,เว็บและแอป (ไทย),ฟรีสำหรับผู้ซื้อ (ไม่พบหน้าราคา),เว็บเปรียบเทียบราคาสินค้า,ไม่ได้เปิดหน้าเว็บอ่านเอง,,,ไม่ระบุ
+ค้น Google เอง,substitute,,ทุกที่,ฟรี,ผู้ใช้ค้นและเปิดเทียบหลายเว็บเอง,,,,

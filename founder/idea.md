@@ -1,0 +1,7 @@
+# Smith Agent
+
+- What it is: a Thai-first agent that does web research tasks for you (find, compare, check, summarise), quotes a fixed price before it starts, charges nothing when it fails, and returns the result with proof you can open yourself.
+- Who it is for: Thai-speaking smartphone users who already live in LINE and want an errand done on the web without doing the searching and comparing themselves. No narrower segment has been chosen or tested yet.
+- What it sells, at what price: one job at a time, paid from a prepaid credit balance in baht. Small job ฿5, medium ฿9, large ฿15. A failed job costs ฿0. A wrong result can be refunded within 24 hours (automatic 3 times a month, then reviewed by a person).
+- Where and how: online, Thailand. A LINE bot and a phone web app (installable from the browser). The user types the task in Thai, sees the plan and price, taps start, and gets the result in 1 to 5 minutes.
+- Budget and constraints: solo founder. The product is built and deployed as an invite-only test. No payment system yet: testers get ฿200 of free credit. No marketing budget has been set. No revenue, no paying users and no usage data yet.
