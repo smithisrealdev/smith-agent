@@ -96,9 +96,14 @@ cloudflared tunnel --url http://localhost:3000
 
 ## เพิ่มบอท LINE (ไม่บังคับ)
 
-1. **สร้างช่องทาง LINE:** สร้างช่อง Messaging API ใน [LINE Developers](https://developers.line.biz/console/) เก็บ **Channel secret** และออก **Channel access token (long-lived)** แล้วใส่ใน `.env`
-2. **ตั้งค่า LINE Official Account Manager:** **ปิด**ข้อความตอบกลับอัตโนมัติและข้อความทักทาย แล้ว**เปิด** Webhook
-3. **ตั้ง Webhook URL:** ใน LINE Developers ตั้งเป็น `https://<โดเมนของคุณ>/webhook` (LINE ต้องใช้ HTTPS) แล้วกด Verify
+1. **สร้างบัญชี LINE OA:** สร้างที่ [LINE Official Account Manager](https://manager.line.biz) (LINE ไม่ให้สร้างช่อง Messaging API ตรงๆ ใน LINE Developers แล้ว)
+2. **เปิด Messaging API:** ในบัญชี OA ไปที่ **ตั้งค่า > Messaging API** กด **เปิดใช้** แล้วสร้าง Provider ใหม่หรือเลือก Provider เดิม ถ้าจะใช้เข้าสู่ระบบด้วย LINE ภายหลัง ต้องใช้ Provider เดียวกัน
+3. **ตั้งการตอบกลับ:** ใน OA Manager ที่ **ตั้งค่าการตอบกลับ** ให้**ปิด**ข้อความตอบกลับอัตโนมัติและข้อความทักทาย แล้ว**เปิด** Webhook
+4. **เก็บคีย์:** ใน [LINE Developers](https://developers.line.biz/console/) เปิดช่องที่เพิ่งสร้าง
+   - แท็บ **Basic settings:** คัดลอก **Channel secret**
+   - แท็บ **Messaging API:** ออก **Channel access token (long-lived)**
+   - ใส่ทั้งสองค่าใน `.env` เป็น `LINE_CHANNEL_SECRET` และ `LINE_CHANNEL_ACCESS_TOKEN` (บน Render ใส่ในแท็บ **Environment**)
+5. **ตั้ง Webhook URL:** ในแท็บ **Messaging API** ตั้งเป็น `https://<โดเมนของคุณ>/webhook` (LINE ต้องใช้ HTTPS) กด **Verify** แล้วเปิด **Use webhook**
 
 ในแชท LINE ผู้ใช้พิมพ์ "เครดิต" เพื่อดูยอดและรหัสผู้ใช้ได้
 
