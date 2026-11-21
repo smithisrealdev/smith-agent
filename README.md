@@ -118,7 +118,8 @@ cloudflared tunnel --url http://localhost:3000
 1. **สร้างช่อง LINE Login:** ใน [LINE Developers](https://developers.line.biz/console/) สร้างช่อง LINE Login ไว้ใต้ provider เดียวกับช่อง Messaging API ของบอท (ผู้ใช้คนเดียวกันจะได้รหัสเดียวกันทั้งสองช่อง)
 2. **ตั้ง Callback URL:** เป็น `https://<โดเมนของคุณ>/auth/line/callback` (ต้องเป็น HTTPS)
 3. **ผูกบัญชี LINE OA:** ที่หน้า "Linked LINE Official Account" ผูกกับบัญชีของบอท ผู้ใช้จะได้ปุ่มเพิ่มเพื่อนตอนเข้าสู่ระบบ
-4. **ใส่ค่าใน `.env`:** `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET` และ `PUBLIC_URL`
+4. **ใส่ค่าใน `.env`:** `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET` และ `PUBLIC_URL` (บน Render ใส่สองค่าแรกในแท็บ **Environment** ส่วน `PUBLIC_URL` Render ตั้งให้เอง)
+5. **เผยแพร่ช่อง:** ช่องใหม่อยู่ในโหมด **Developing** ซึ่งเข้าสู่ระบบได้เฉพาะแอดมินของช่อง กด **Publish** ก่อนส่งรหัสเชิญให้ผู้ทดลอง
 
 ผมเขียนส่วนนี้ตาม LINE Login v2.1 แต่เปิดเอกสารของ LINE จากเครื่องที่ใช้พัฒนาไม่ได้ จึงทดสอบกับ LINE จำลองเท่านั้น การเข้าสู่ระบบจริงครั้งแรกคือการทดสอบจริง
 
