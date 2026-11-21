@@ -25,6 +25,7 @@ export const config = {
   usdThb: Number(env.USD_THB || 36),
   inviteCode: env.WEB_INVITE_CODE || "", // set it before the web app is reachable from the internet
   quotesPerHour: Number(env.QUOTES_PER_HOUR || 30), // per user; every quote is a paid Claude call
+  dailyCostCap: whole("DAILY_COST_CAP", 500, 0), // baht of Claude cost per Thai day, all users together; 0 turns the cap off
 };
 
 // The price the user sees before a job starts, and the work budget that price buys.

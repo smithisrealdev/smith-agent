@@ -2,7 +2,7 @@ import { SIZES, REFUND } from "./config.js";
 import { text, postback, image, optionCards } from "./line.js";
 
 const baht = (n) => `฿${n}`;
-const clock = () => new Date().toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
+const clock = (at) => new Date(at ?? Date.now()).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
 // What the agent opened, in one or two lines. Nothing for jobs from before this was recorded.
 const coverageText = (c) => {
   if (!c || (!c.searches && !c.pages)) return "";
@@ -21,13 +21,25 @@ const welcome = (credit) =>
     `เครดิตเริ่มต้นของคุณ ${baht(credit)} · พิมพ์ "เครดิต" เพื่อดูยอด`,
   ].join("\n");
 
-export function createBot({ store, line, quote, runner, publicUrl = "", log = console }) {
+const FULL = "วันนี้ Smith รับงานเต็มแล้วครับ ลองใหม่พรุ่งนี้ ไม่คิดเงิน และเครดิตของคุณไม่ถูกหัก";
+
+// A finished job as the runner reported it, rebuilt from what was stored: for sending it again.
+const resultOf = (j) => ({
+  ok: j.status !== "failed", answer: j.answer, evidence: j.evidence,
+  sources: JSON.parse(j.sources || "[]"), options: JSON.parse(j.options || "[]"), codes: JSON.parse(j.codes || "[]"),
+  coverage: j.coverage ? JSON.parse(j.coverage) : null,
+});
+
+export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, log = console }) {
+  const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
   async function onText(userId, replyToken, msg) {
     const user = store.user(userId);
     if (msg.trim() === "เครดิต") {
       // Testers send this id to staff, who add credit with `node src/cli.js grant <id> <baht>`.
       return line.reply(replyToken, [text(`เครดิตคงเหลือ ${baht(user.credit)}\nรหัสผู้ใช้ (ส่งให้ทีมงานเมื่อขอเติมเครดิต)\n${userId}`)]);
     }
+    if (msg.trim() === "ผลล่าสุด") return line.reply(replyToken, await latest(userId));
+    if (full()) return line.reply(replyToken, [text(FULL)]); // every quote is a paid Claude call
     const job = store.addQuote(userId, msg, await quote(msg));
     if (job.status === "rejected") return line.reply(replyToken, [text(`ขอโทษครับ งานนี้ Smith ยังทำไม่ได้\n${job.reason}\nไม่คิดเงินครับ`)]);
     const steps = JSON.parse(job.steps).map((s, i) => `${i + 1}. ${s}`);
@@ -44,6 +56,7 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
     const [action, raw, kind] = data.split(":");
     const id = Number(raw);
     if (action === "start") {
+      if (full()) return line.reply(replyToken, [text(FULL)]); // not started, so nothing is charged
       const r = store.start(userId, id);
       if (!r.ok) {
         const msg = r.reason === "credit"
@@ -51,7 +64,7 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
           : "งานนี้เริ่มไปแล้ว หรือยกเลิกไปแล้วครับ";
         return line.reply(replyToken, [text(msg)]);
       }
-      await line.reply(replyToken, [text(`เริ่มแล้ว: ${r.job.title}\nเสร็จแล้วจะส่งผลมาในแชทนี้ ปิดแชทได้เลย`)]);
+      await line.reply(replyToken, [text(`เริ่มแล้ว: ${r.job.title}\nเสร็จแล้วจะส่งผลมาในแชทนี้ ปิดแชทได้เลย ถ้าไม่เห็นผล พิมพ์ "ผลล่าสุด"`)]);
       return work(r.job);
     }
     if (action === "cancel") {
@@ -78,18 +91,18 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
     return notify(done, r);
   }
 
-  // The result message in LINE. Web-only accounts have no chat to send it to.
-  async function notify(job, r) {
-    if (!job || job.user_id.startsWith("web:")) return; // no job: the account was deleted while it ran
+  // The result as LINE messages: `cards` is the richer version (option cards), `plain` is text only for when LINE turns the cards down.
+  function resultMessages(job, r) {
     const credit = baht(store.user(job.user_id).credit);
     if (!r.ok) {
-      return line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\n${r.answer}\nเครดิตเท่าเดิม ${credit}`)]);
+      const failed = [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\n${r.answer}\nเครดิตเท่าเดิม ${credit}`)];
+      return { cards: failed, plain: failed };
     }
     const sources = r.sources.map((s, i) => `${i + 1}. ${s.title}\n${s.url}`);
     const options = (r.options || []).map((o, i) => [`${i + 1}. ${o.name}${o.price ? ` · ${o.price}` : ""}`, o.note, o.url].filter(Boolean).join("\n"));
     const codes = (r.codes || []).map((c, i) => [`${i + 1}. ${c.code}${c.shop ? ` · ${c.shop}` : ""}`, c.note, c.url].filter(Boolean).join("\n"));
     const reach = coverageText(r.coverage);
-    const when = `เช็กเมื่อ ${clock()} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`;
+    const when = `เช็กเมื่อ ${clock(job.finished_at)} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`;
     // The quick reply shows only on the last message, so the result text goes last and pictures first.
     const result = (list) => text(
       [
@@ -101,12 +114,30 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
       [postback("ราคาไม่ตรงหน้าเว็บ", `refund:${job.id}:price`), postback("ผลไม่ตรงอย่างอื่น", `refund:${job.id}`)],
     );
     const shot = r.evidence && publicUrl ? [image(publicUrl + r.evidence)] : []; // LINE needs an absolute https URL
-    if (!publicUrl || !options.length) return line.push(job.user_id, [...shot, result(true)]);
-    // The options go out as cards, with product pictures and shop logos where there are any. If LINE turns the cards down, the result still arrives as text.
-    return line.push(job.user_id, [...shot, optionCards(r.options, publicUrl), result(false)]).catch((err) => {
+    const plain = [...shot, result(true)];
+    // The options go out as cards, with product pictures and shop logos where there are any.
+    return { cards: !publicUrl || !options.length ? plain : [...shot, optionCards(r.options, publicUrl), result(false)], plain };
+  }
+
+  // The result message in LINE, pushed when the work is done. Web-only accounts have no chat to send it to.
+  async function notify(job, r) {
+    if (!job || job.user_id.startsWith("web:")) return; // no job: the account was deleted while it ran
+    const { cards, plain } = resultMessages(job, r);
+    if (cards === plain) return line.push(job.user_id, plain);
+    return line.push(job.user_id, cards).catch((err) => {
       log.error("option cards refused", err);
-      return line.push(job.user_id, [...shot, result(true)]);
+      return line.push(job.user_id, plain);
     });
+  }
+
+  // "ผลล่าสุด": the newest finished result again. It goes out as a reply, which LINE does not count against the
+  // monthly message quota, so it still works for someone whose pushed result never arrived.
+  async function latest(userId) {
+    const jobs = store.jobsOf(userId, 20);
+    if (jobs[0]?.status === "running") return [text('งานล่าสุดยังทำอยู่ครับ เสร็จแล้วจะส่งผลมาในแชทนี้ ถ้านานกว่าเวลาที่แจ้งไว้ พิมพ์ "ผลล่าสุด" อีกครั้ง')];
+    const job = jobs.find((j) => ["done", "refunded", "refund_review", "failed"].includes(j.status));
+    if (!job) return [text("ยังไม่มีผลงานที่เสร็จครับ พิมพ์งานที่อยากให้ทำมาได้เลย")];
+    return resultMessages(job, resultOf(job)).cards;
   }
 
   async function handle(e) {

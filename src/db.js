@@ -170,6 +170,13 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
       return one("SELECT * FROM users WHERE id = ?", userId);
     },
 
+    // Claude cost (baht) of the quotes and jobs made since midnight in Thailand: what the daily cap is checked against.
+    spentToday() {
+      const day = 86400e3;
+      const midnight = new Date(Math.floor((now().getTime() + 7 * 3600e3) / day) * day - 7 * 3600e3).toISOString();
+      return one("SELECT COALESCE(SUM(quote_cost + run_cost), 0) AS n FROM jobs WHERE created_at >= ?", midnight).n;
+    },
+
     running: () => db.prepare("SELECT * FROM jobs WHERE status = 'running'").all(),
     jobsOf: (userId, limit = 50) => db.prepare("SELECT * FROM jobs WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit),
     ledgerOf: (userId, limit = 50) =>

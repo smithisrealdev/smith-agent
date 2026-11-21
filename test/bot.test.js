@@ -11,7 +11,7 @@ const RESULT = {
   usage: { cost: 4.2, input_tokens: 9000, output_tokens: 800, searches: 3 },
 };
 
-function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, refuse = () => false } = {}) {
+function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, refuse = () => false } = {}) {
   let t = clock ?? Date.parse("2026-11-20T03:00:00Z");
   const store = makeStore(openDb(":memory:"), { startCredit: 20, now: () => new Date(t) });
   const sent = [];
@@ -23,7 +23,7 @@ function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, cloc
     },
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
-  const bot = createBot({ store, line, quote, runner, publicUrl, log: { error() {} } });
+  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, log: { error() {} } });
   return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
@@ -255,4 +255,49 @@ test("tapping 'wrong price' in LINE refunds in full, tags the job, and says it w
   assert.equal(store.user("U1").credit, 20);
   assert.equal(store.job(1).refund_tag, "price");
   assert.equal(store.job(1).refund_reason, "ราคาไม่ตรงกับหน้าเว็บ");
+});
+
+test("when today's Claude budget is used up, a new quote and a start are turned down and nothing is charged", async () => {
+  const { store, bot, sent } = setup({ dailyCostCap: 1 });
+  await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
+  assert.equal(store.jobsOf("U1").length, 1, "under the cap, quotes are made");
+  store.addQuote("U1", "x", { doable: true, title: "t", steps: [], size: "M", cost: 5 }); // today's spending now passes the cap
+  await bot.handle(say("U1", "อีกงาน"));
+  assert.match(lastText(sent), /วันนี้ Smith รับงานเต็มแล้ว/);
+  assert.equal(store.jobsOf("U1").length, 2, "no new quote was made");
+  await bot.handle(tap("U1", "start:1"));
+  assert.match(lastText(sent), /เครดิตของคุณไม่ถูกหัก/);
+  assert.equal(store.job(1).status, "quoted");
+  assert.equal(store.user("U1").credit, 20);
+  await bot.handle(say("U1", "เครดิต"));
+  assert.match(lastText(sent), /เครดิตคงเหลือ ฿20/, "asking for the balance still works");
+});
+
+test("'ผลล่าสุด' sends the newest finished result again as a reply, for someone whose pushed result never arrived", async () => {
+  const codes = [{ code: "SAVE10", shop: "ร้าน A", note: "ลด 10%", url: "https://a.example/promo" }];
+  const { bot, sent, later } = setup({ runTask: async () => ({ ...RESULT, codes }), refuse: () => true }); // every push fails, like a spent monthly quota
+  await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
+  await bot.handle(tap("U1", "start:1"));
+  assert.ok(!sent.some((m) => m.to === "U1"), "nothing was pushed");
+  later(5);
+  await bot.handle(say("U1", "ผลล่าสุด"));
+  const again = sent.at(-1);
+  assert.equal(again.to, "reply", "a reply, which does not count against the monthly quota");
+  assert.match(again.messages.at(-1).text, /เสร็จแล้ว: หาตั๋วไปเชียงใหม่[\s\S]*฿1,290[\s\S]*SAVE10/);
+  assert.match(again.messages.at(-1).text, /เช็กเมื่อ 10:/, "it says when it was checked, not when it was asked for again");
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"]);
+});
+
+test("'ผลล่าสุด' says so when the last job is still running, when there is nothing yet, and shows a failure as a failure", async () => {
+  const { store, bot, sent } = setup({ runTask: async () => ({ ok: false, summary: "เว็บปิด", sources: [], usage: { cost: 1 } }) });
+  await bot.handle(say("U1", "ผลล่าสุด"));
+  assert.match(lastText(sent), /ยังไม่มีผลงานที่เสร็จ/);
+  await bot.handle(say("U1", "หาตั๋ว"));
+  await bot.handle(tap("U1", "start:1"));
+  await bot.handle(say("U1", "ผลล่าสุด"));
+  assert.match(lastText(sent), /ไม่สำเร็จ ไม่คิดเงิน: หาตั๋วไปเชียงใหม่\nเว็บปิด/);
+  const second = store.addQuote("U1", "อีกงาน", { doable: true, title: "t", steps: [], size: "M", cost: 0 });
+  store.start("U1", second.id);
+  await bot.handle(say("U1", "ผลล่าสุด"));
+  assert.match(lastText(sent), /งานล่าสุดยังทำอยู่/);
 });

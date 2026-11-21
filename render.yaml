@@ -18,6 +18,9 @@ services:
         sync: false
       - key: START_CREDIT
         value: "200" # invite-only test: testers start with enough credit, no one has to add it by hand
+      # Optional: the most Claude cost (baht) accepted per day, all users together (default 500, 0 = no cap).
+      # - key: DAILY_COST_CAP
+      #   value: "500"
       # Optional: change what a job costs, in whole baht (defaults 5 / 9 / 15). Uncomment and re-apply the Blueprint.
       # - key: PRICE_M
       #   value: "12"

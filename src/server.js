@@ -14,14 +14,14 @@ import { createLineLogin } from "./linelogin.js";
 const store = makeStore(openDb(config.dbPath), config);
 const runner = createRunner({ store, runTask, screenshot, saveLogos, saveImages, evidenceDir: config.evidenceDir });
 const bot = config.lineSecret && config.lineToken
-  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl })
+  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl, dailyCostCap: config.dailyCostCap })
   : null;
 const lineLogin = config.lineLoginId && config.lineLoginSecret && config.publicUrl
   ? createLineLogin({ channelId: config.lineLoginId, channelSecret: config.lineLoginSecret, callbackUrl: `${config.publicUrl}/auth/line/callback` })
   : null;
 const web = createWeb({
   store, quote, runner, lineLogin, notify: bot?.notify,
-  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour,
+  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour, dailyCostCap: config.dailyCostCap,
 });
 
 if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");

@@ -40,7 +40,8 @@ export function jobView(j) {
 
 // The phone app's API. A phone keeps a random token and the server stores only its hash (the "key").
 // Without LINE Login the key is the account; with it, the key must be signed in to a LINE user first.
-export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, now = () => new Date(), log = console }) {
+export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, now = () => new Date(), log = console }) {
+  const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
   const json = (res, status, body) => {
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     res.end(JSON.stringify(body));
@@ -108,6 +109,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
       store.user(userId);
       const hourAgo = new Date(now() - 3600e3).toISOString();
       if (store.quotesSince(userId, hourAgo) >= quotesPerHour) return json(res, 429, { error: "rate" });
+      if (full()) return json(res, 503, { error: "busy" });
       const job = store.addQuote(userId, text, await quote(text));
       return json(res, 200, { job: jobView(job), credit: credit(userId) });
     }
@@ -120,6 +122,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     if (m && m[2] && req.method === "POST") {
       if (!ownJob(userId, id)) return json(res, 404, { error: "not_found" });
       if (m[2] === "start") {
+        if (full()) return json(res, 503, { error: "busy", credit: credit(userId) }); // not started, so nothing is charged
         const r = store.start(userId, id);
         if (!r.ok) return json(res, 409, { error: r.reason, credit: credit(userId) });
         // The app polls the job for the result; LINE users also get it in their chat.

@@ -598,6 +598,8 @@
     btn.setAttribute("aria-busy", "true");
     if (label) btn.innerHTML = `${label} ${DOTS}`;
   };
+  // Why a quote or a start was turned down, by status.
+  const NO = { 429: "สั่งงานบ่อยเกินไป รอสักครู่แล้วลองใหม่", 503: "วันนี้ Smith รับงานเต็มแล้ว ลองใหม่พรุ่งนี้ ไม่คิดเงิน" };
   const actions = {
     async send(_, btn) {
       const text = state.draft.trim();
@@ -609,7 +611,7 @@
       const r = await api("POST", "/api/quote", { text });
       if (!r.ok) {
         render(homeView());
-        return toast(r.status === 429 ? "สั่งงานบ่อยเกินไป รอสักครู่แล้วลองใหม่" : "ระบบขัดข้อง ลองใหม่อีกครั้ง");
+        return toast(NO[r.status] || "ระบบขัดข้อง ลองใหม่อีกครั้ง");
       }
       state.draft = "";
       saved.set("draft", "");
@@ -631,6 +633,7 @@
         toast("เครดิตไม่พอสำหรับงานนี้");
         return route();
       }
+      if (r.status === 503) return toast(NO[503]), route();
       go(`#/job/${id}`);
     },
     edit() {
@@ -646,7 +649,7 @@
     async retry(_, btn) {
       busy(btn, "กำลังคิดราคา");
       const r = await api("POST", "/api/quote", { text: state.job.text });
-      if (!r.ok) return toast(r.status === 429 ? "สั่งงานบ่อยเกินไป รอสักครู่แล้วลองใหม่" : "ระบบขัดข้อง ลองใหม่อีกครั้ง"), route();
+      if (!r.ok) return toast(NO[r.status] || "ระบบขัดข้อง ลองใหม่อีกครั้ง"), route();
       go(`#/quote/${r.data.job.id}`);
     },
     reason(i) {

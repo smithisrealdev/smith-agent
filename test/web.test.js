@@ -322,3 +322,19 @@ test("the app's 'price does not match the page' reason is a price claim; the job
   assert.equal(s.store.job(body.job.id).refund_tag, "price");
   assert.match(s.store.job(body.job.id).refund_reason, /ราคาในเว็บ 9,500/);
 });
+
+test("when today's Claude budget is used up, a quote and a start answer 503 and charge nothing", async (t) => {
+  const s = await start({ dailyCostCap: 1 });
+  t.after(s.close);
+  const first = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
+  assert.equal(first.status, 200, "under the cap, quotes are made");
+  s.store.user("other");
+  s.store.addQuote("other", "x", { doable: true, title: "t", steps: [], size: "M", cost: 5 }); // today's spending now passes the cap
+  const quote = await s.call(A, "POST", "/api/quote", { text: "อีกงาน" });
+  assert.equal(quote.status, 503);
+  assert.equal(quote.body.error, "busy");
+  const startJob = await s.call(A, "POST", `/api/jobs/${first.body.job.id}/start`);
+  assert.equal(startJob.status, 503);
+  assert.equal(startJob.body.credit, 20, "nothing was charged");
+  assert.equal(s.store.job(first.body.job.id).status, "quoted");
+});
