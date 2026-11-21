@@ -4,12 +4,16 @@
 //   node src/cli.js grant <lineUserId> <baht> add credit for a tester
 //   node src/cli.js backup                    copy the database now, next to it, and print where
 //   node src/cli.js restore <file> yes        replace the database with a backup, then restart the server
+//   node src/cli.js trial ["task" ...]       run real tasks once (8 built in, 12 at most): cost per job, success, sites it cannot read
 //   node src/cli.js queue                     refunds waiting for review, wrong-price claims first
 //   node src/cli.js refund <jobId>            approve a refund waiting for review
 import { config } from "./config.js";
 import { openDb, makeStore } from "./db.js";
 import { stats, formatStats, formatJobs, formatQueue } from "./stats.js";
 import { backupDb, restoreDb } from "./backup.js";
+import { quote, runTask } from "./agent.js";
+import { TASKS, MAX_TASKS, runOne, formatRow, summarize, formatSummary } from "./trial.js";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const [cmd, a, b] = process.argv.slice(2);
@@ -32,11 +36,24 @@ if (cmd === "stats") {
     await restoreDb(a, config.dbPath);
     console.log("restored. Restart the server now so it opens the restored database.");
   }
+} else if (cmd === "trial") {
+  const tasks = process.argv.slice(3).length ? process.argv.slice(3) : TASKS;
+  if (tasks.length > MAX_TASKS) throw new Error(`at most ${MAX_TASKS} tasks: each one is a real, paid job`);
+  mkdirSync(join(dirname(config.dbPath), "trials"), { recursive: true });
+  const out = join(dirname(config.dbPath), "trials", `trial-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.txt`);
+  const say = (t) => (console.log(t), appendFileSync(out, `${t}\n`)); // saved as it goes, so a dropped shell loses nothing
+  say(`${tasks.length} งานจริง ใช้เครดิต Anthropic ของคุณ (ประมาณ ฿3–10 ต่องาน ยังไม่เคยวัด) ผลบันทึกที่ ${out}`);
+  const rows = [];
+  for (const [i, text] of tasks.entries()) {
+    rows.push(await runOne(text, { quote, runTask }));
+    say(formatRow(rows[i], i));
+  }
+  say(`\n${formatSummary(summarize(rows))}`);
 } else if (cmd === "queue") {
   console.log(formatQueue(db));
 } else if (cmd === "refund" && Number(a)) {
   console.log(store.forceRefund(Number(a)) ? `refunded job ${a}` : `job ${a} is not refundable`);
 } else {
-  console.log("usage: node src/cli.js stats | jobs [n] | queue | backup | restore <file> yes | grant <userId> <baht> | refund <jobId>");
+  console.log("usage: node src/cli.js stats | jobs [n] | queue | trial [task ...] | backup | restore <file> yes | grant <userId> <baht> | refund <jobId>");
   process.exitCode = 1;
 }
