@@ -709,7 +709,7 @@
   let drag = null;
   app.addEventListener("touchstart", (e) => {
     const sheet = e.target.closest?.(".sheet");
-    drag = sheet && sheet.scrollTop <= 0 ? { sheet, y: e.touches[0].clientY, dy: 0 } : null;
+    drag = sheet && sheet.scrollTop <= 0 ? { sheet, y: e.touches[0].clientY, dy: 0, at: e.timeStamp } : null;
   }, { passive: true });
   app.addEventListener("touchmove", (e) => {
     if (!drag) return;
@@ -718,12 +718,12 @@
     // The slide-up animation would win over this transform, so it is switched off for good; a transition takes over.
     Object.assign(drag.sheet.style, { animation: "none", transition: "none", transform: `translateY(${drag.dy}px)` });
   }, { passive: true });
-  app.addEventListener("touchend", () => {
+  app.addEventListener("touchend", (e) => {
     if (!drag) return;
-    const { sheet, dy } = drag;
+    const { sheet, dy, at } = drag;
     drag = null;
     if (dy < 6) return;
-    const close = dy > 90;
+    const close = dy > 90 || (dy > 24 && dy / (e.timeStamp - at) > 0.5); // far enough, or a quick flick (over 0.5px per ms)
     Object.assign(sheet.style, { transition: `transform ${close ? "220ms ease-in" : "320ms var(--spring)"}`, transform: close ? "translateY(100%)" : "translateY(0)" });
     if (close) closeSheet();
   });
