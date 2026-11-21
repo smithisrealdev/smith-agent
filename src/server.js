@@ -10,8 +10,12 @@ import { createRunner } from "./runner.js";
 import { createBot } from "./bot.js";
 import { createWeb } from "./web.js";
 import { createLineLogin } from "./linelogin.js";
+import { createAdmin } from "./admin.js";
+import { backupDb } from "./backup.js";
+import { dirname, join } from "node:path";
 
-const store = makeStore(openDb(config.dbPath), config);
+const db = openDb(config.dbPath);
+const store = makeStore(db, config);
 const runner = createRunner({ store, runTask, screenshot, saveLogos, saveImages, evidenceDir: config.evidenceDir });
 const bot = config.lineSecret && config.lineToken
   ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl, dailyCostCap: config.dailyCostCap })
@@ -27,6 +31,16 @@ const web = createWeb({
 if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");
 if (!bot) console.log("LINE is off (LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN not set): serving the web app only.");
 console.log(lineLogin ? `Web sign-in: LINE Login (callback ${config.publicUrl}/auth/line/callback)` : "Web sign-in: none, each phone is its own account (set LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET and PUBLIC_URL to require LINE).");
+
+// A copy of the database every day, kept for a week next to it. This guards against a bad edit or a corrupted file,
+// not against losing the disk: keep a copy elsewhere by downloading /admin/backup (see the README).
+const backupDir = join(dirname(config.dbPath), "backups");
+const admin = createAdmin({ db, token: config.adminToken, backupDir });
+const dailyBackup = () => backupDb(db, backupDir).then((f) => console.log("database copied to", f), (err) => console.error("backup failed", err));
+if (config.dbPath !== ":memory:") {
+  dailyBackup();
+  setInterval(dailyBackup, 24 * 3600e3).unref();
+}
 
 const send = (res, status, body = "") => {
   res.writeHead(status, { "Content-Type": "text/plain" });
@@ -57,6 +71,7 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/healthz") return send(res, 200, "ok");
     if (req.method === "POST" && req.url === "/webhook") return bot ? await lineWebhook(req, res) : send(res, 404);
+    if (await admin(req, res)) return;
     if (await web(req, res)) return;
     send(res, 404);
   } catch (err) {

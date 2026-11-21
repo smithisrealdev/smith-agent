@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 // config.js reads the environment when it is first loaded, so each case loads it in a fresh process.
 const load = (env) => {
   try {
-    const out = execFileSync(process.execPath, ["--input-type=module", "-e", 'const { SIZES, config } = await import("./src/config.js"); console.log(JSON.stringify({ prices: [SIZES.S.price, SIZES.M.price, SIZES.L.price], credit: config.startCredit, cap: config.dailyCostCap }))'], {
+    const out = execFileSync(process.execPath, ["--input-type=module", "-e", 'const { SIZES, config } = await import("./src/config.js"); console.log(JSON.stringify({ prices: [SIZES.S.price, SIZES.M.price, SIZES.L.price], credit: config.startCredit, cap: config.dailyCostCap, admin: Boolean(config.adminToken) }))'], {
       env: { PATH: process.env.PATH, ...env }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
     });
     return { ok: true, ...JSON.parse(out) };
@@ -15,8 +15,8 @@ const load = (env) => {
 };
 
 test("prices and the starting credit default to 5 / 9 / 15 and 20, and can be set in whole baht", () => {
-  assert.deepEqual(load({}), { ok: true, prices: [5, 9, 15], credit: 20, cap: 500 });
-  assert.deepEqual(load({ PRICE_M: "12", PRICE_L: "20", START_CREDIT: "36", DAILY_COST_CAP: "300" }), { ok: true, prices: [5, 12, 20], credit: 36, cap: 300 });
+  assert.deepEqual(load({}), { ok: true, prices: [5, 9, 15], credit: 20, cap: 500, admin: false });
+  assert.deepEqual(load({ PRICE_M: "12", PRICE_L: "20", START_CREDIT: "36", DAILY_COST_CAP: "300" }), { ok: true, prices: [5, 12, 20], credit: 36, cap: 300, admin: false });
   assert.equal(load({ DAILY_COST_CAP: "0" }).cap, 0, "0 turns the daily cap off");
   assert.equal(load({ START_CREDIT: "0" }).credit, 0, "a starting credit of zero is allowed");
   assert.deepEqual(load({ PRICE_M: "" }).prices, [5, 9, 15], "an empty value is the same as not set");
@@ -28,6 +28,14 @@ test("a mistyped price or credit stops the server instead of quietly using anoth
     assert.equal(r.ok, false, `${name}=${value}`);
     assert.match(r.message, new RegExp(`${name} must be a whole number`), `${name}=${value}`);
   }
+});
+
+test("the staff download token must be long enough to be safe, and is off when it is not set", () => {
+  assert.equal(load({ ADMIN_TOKEN: "a".repeat(32) }).admin, true);
+  assert.equal(load({ ADMIN_TOKEN: "" }).admin, false);
+  const short = load({ ADMIN_TOKEN: "a".repeat(31) });
+  assert.equal(short.ok, false);
+  assert.match(short.message, /ADMIN_TOKEN must be at least 32 characters/);
 });
 
 test("a bigger job may not cost less than a smaller one", () => {

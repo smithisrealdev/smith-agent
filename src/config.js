@@ -1,6 +1,12 @@
 // Every tunable lives here; each one can be overridden from the environment.
 const env = process.env;
 
+// A secret that guards the staff download of the database. Too short to be safe is refused, not accepted quietly.
+function adminToken(raw = "") {
+  if (raw && raw.length < 32) throw new Error("ADMIN_TOKEN must be at least 32 characters (try: openssl rand -hex 32)");
+  return raw;
+}
+
 // A whole number of baht from the environment, or the default. A typo stops the server at start instead of
 // quietly charging a different price than the one intended.
 function whole(name, fallback, min = 1) {
@@ -25,6 +31,7 @@ export const config = {
   usdThb: Number(env.USD_THB || 36),
   inviteCode: env.WEB_INVITE_CODE || "", // set it before the web app is reachable from the internet
   quotesPerHour: Number(env.QUOTES_PER_HOUR || 30), // per user; every quote is a paid Claude call
+  adminToken: adminToken(env.ADMIN_TOKEN), // turns on GET /admin/backup; leave empty to keep that route off
   dailyCostCap: whole("DAILY_COST_CAP", 500, 0), // baht of Claude cost per Thai day, all users together; 0 turns the cap off
 };
 
