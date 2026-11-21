@@ -68,7 +68,7 @@
   const DOTS = '<span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>';
 
   // ---------- state and server calls
-  const state = { me: null, jobs: [], job: null, draft: saved.get("draft") || "", slide: 0, refund: null };
+  const state = { me: null, jobs: [], job: null, draft: saved.get("draft") || "", slide: 0, refund: null, filter: 0 };
   let poller;
   let gen = 0; // bumped on every route change: loads and polls from an older screen stop instead of painting
 
@@ -133,8 +133,8 @@
       ${charged ? `<span class="money">${baht(j.price)}</span>` : ""}</a>`;
   };
   // Pictures sit on top of an icon: when one is missing or fails to load it is removed and the icon shows.
-  const logoImg = (host) => (host ? `<img class="logo" src="/logo/${esc(host)}.png" alt="" loading="lazy">` : "");
-  const picture = (o) => (/^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o?.image) ? o.image : ""); // the product's picture, when its page had one
+  const logoImg = (host) => (host && pref("pictures") ? `<img class="logo" src="/logo/${esc(host)}.png" alt="" loading="lazy">` : "");
+  const picture = (o) => (pref("pictures") && /^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o?.image) ? o.image : ""); // the product's picture, when its page had one
   const siteTile = (url) => `<span class="tile">${D.link}${logoImg(hostOf(url))}</span>`;
   const brandOf = (o) => (/^[a-z0-9.-]+$/.test(o?.brand || "") ? o.brand : hostOf(o?.url)); // `|| ""`: test(undefined) checks the text "undefined" // whose logo an option carries: the brand's, else its page's
   const sourceRow = (s) =>
@@ -447,11 +447,18 @@
   }
 
   // ---------- history, credit, settings, help
+  // History can be narrowed with a segmented control; the thumb slides, so only the list below it is redrawn.
+  const FILTERS = [["ทั้งหมด", () => true], ["สำเร็จ", (j) => ["done", "refund_review"].includes(j.status)], ["ไม่คิดเงิน", (j) => ["failed", "refunded", "cancelled", "rejected"].includes(j.status)]];
+  const historyList = () => {
+    const jobs = state.jobs.filter(FILTERS[state.filter][1]);
+    return jobs.length ? `<div class="card list">${jobs.map(jobRow).join("")}</div>` : '<p class="muted" style="text-align:center;padding:24px 0">ไม่มีงานในหมวดนี้</p>';
+  };
   async function history() {
     state.jobs = (await api("GET", "/api/jobs")).data.jobs || [];
     render(`${topbar("งานทั้งหมด")}
       ${state.jobs.length
-        ? `<div class="card list">${state.jobs.map(jobRow).join("")}</div>`
+        ? `<div class="seg" role="group" aria-label="กรองงาน" style="--i:${state.filter}">${FILTERS.map(([label], i) => `<button data-act="filter" data-arg="${i}" aria-pressed="${i === state.filter}">${label}</button>`).join("")}</div>
+          <div class="slot" id="hist-list">${historyList()}</div>`
         : `<div class="grow"></div><div class="center"><div class="mascot">${M.small || ""}</div><h1 style="font-size:24px">ยังไม่มีงาน</h1><p class="muted">งานที่สั่งจะอยู่ตรงนี้ทั้งหมด</p></div><div class="grow"></div><a class="btn" href="#/">สั่งงานแรก</a>`}`);
   }
 
@@ -477,16 +484,47 @@
       <div class="card list">${entries.map(ledgerRow).join("") || '<div class="item muted">ยังไม่มีรายการ</div>'}</div>`);
   }
 
+  // A sheet slides up over the current screen. What is behind it goes inert until it closes.
+  function openSheet(title, body) {
+    for (const el of app.children) el.inert = true;
+    document.documentElement.style.overflow = "hidden";
+    app.insertAdjacentHTML("beforeend", `<div class="scrim" data-act="close-sheet"></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="topbar"><span class="gap44"></span><div class="title">${esc(title)}</div>
+        <button class="icon-btn" data-act="close-sheet" aria-label="ปิด">${I.x}</button></div>${body}</div>`);
+    app.querySelector(".sheet .icon-btn").focus();
+  }
+  function closeSheet() {
+    const parts = app.querySelectorAll(".sheet, .scrim");
+    if (!parts.length) return;
+    parts.forEach((el) => el.classList.add("out"));
+    setTimeout(() => {
+      parts.forEach((el) => el.remove());
+      for (const el of app.children) el.inert = false;
+      document.documentElement.style.overflow = "";
+    }, 220);
+    window.history.replaceState(null, "", "#/"); // home is already on screen underneath: no reload
+  }
+
+  // Settings kept on this phone. Both are on unless switched off.
+  const PREFS = [["motion", "sparkle", "ภาพเคลื่อนไหว"], ["pictures", "image", "รูปสินค้าและโลโก้"]];
+  const pref = (key) => (saved.get("prefs") || {})[key] !== false;
+  const applyPrefs = () => document.documentElement.classList.toggle("calm", !pref("motion"));
+  applyPrefs();
+
+  // Settings open as a sheet over home, so home is shown first when it is not already there.
   async function settings() {
-    const me = (await api("GET", "/api/me")).data;
+    fresh = false;
+    if (!document.getElementById("cmd")) await home();
+    else if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
+    const me = state.me;
     const row = (href, ic, label, right = "", tone = "") =>
-      `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}</span><span class="grow t" style="font-weight:500">${label}</span>${right}${I.chev}</a>`;
-    render(`${topbar("ตั้งค่า")}
-      <div class="card list">${row("#/wallet", "wallet", "เครดิต", `<span class="money">${baht(me.credit)}</span>`)}${row("#/history", "list", "งานทั้งหมด")}${row("#/help", "help", "ช่วยเหลือและข้อมูลส่วนตัว")}</div>
-      ${me.login ? `<div class="card list"><button class="item" data-act="logout" style="width:100%;text-align:left"><span class="tile">${D.logout}</span><span class="grow t" style="font-weight:500">ออกจากระบบ</span></button></div>` : ""}
-      <div class="card list">${row("#/delete", "trash", "ลบบัญชีและข้อมูลทั้งหมด", "", "bad")}</div>
-      <div class="grow"></div>
-      <p class="small muted" style="text-align:center">Smith Agent รุ่นทดลอง · รหัส ${esc(me.id.replace(/^web:/, "").slice(0, 8))}</p>`);
+      `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}</span><span class="grow t">${label}</span>${right}${I.chev}</a>`;
+    openSheet("ตั้งค่า", `<div class="list">${row("#/wallet", "wallet", "เครดิต", `<span class="money">${baht(me.credit)}</span>`)}${row("#/history", "list", "งานทั้งหมด")}${row("#/help", "help", "ช่วยเหลือและข้อมูลส่วนตัว")}
+        ${PREFS.map(([key, ic, label], i) => `<div class="item"><span class="tile">${D[ic]}</span><span class="grow t" id="pref-${key}">${label}</span>
+          <button class="switch" role="switch" aria-checked="${pref(key)}" aria-labelledby="pref-${key}" data-act="toggle" data-arg="${i}"></button></div>`).join("")}
+        ${me.login ? `<button class="item" data-act="logout" style="width:100%;text-align:left"><span class="tile">${D.logout}</span><span class="grow t">ออกจากระบบ</span></button>` : ""}
+        ${row("#/delete", "trash", '<span style="color:var(--rtxt)">ลบบัญชีและข้อมูลทั้งหมด</span>', "", "bad")}</div>
+      <p class="small muted" style="text-align:center;padding-top:6px">Smith Agent รุ่นทดลอง · รหัส ${esc(me.id.replace(/^web:/, "").slice(0, 8))}</p>`);
   }
 
   const FAQ = [
@@ -635,6 +673,19 @@
       saved.set("token", token);
       go("#/login");
     },
+    filter(i, btn) {
+      state.filter = i;
+      btn.parentElement.style.setProperty("--i", i); // the thumb slides to the chosen segment
+      for (const b of btn.parentElement.children) b.setAttribute("aria-pressed", String(b === btn));
+      document.getElementById("hist-list").innerHTML = historyList();
+    },
+    toggle(i, btn) {
+      const prefs = { ...saved.get("prefs"), [PREFS[i][0]]: !pref(PREFS[i][0]) };
+      saved.set("prefs", prefs);
+      btn.setAttribute("aria-checked", String(prefs[PREFS[i][0]]));
+      applyPrefs();
+    },
+    "close-sheet": closeSheet,
     back: () => window.history.back(), // `history` here is the job-list screen
     reload: () => route(),
   };
@@ -683,6 +734,7 @@
   function render(html) {
     renders++;
     clearTimeout(settle);
+    document.documentElement.style.overflow = ""; // a sheet may have locked scrolling
     app.classList.toggle("in", fresh);
     if (fresh) settle = setTimeout(() => app.classList.remove("in"), 1200); // later partial redraws (polls) must not replay it
     fresh = false;
@@ -750,6 +802,7 @@
     if (location.hash === hash) route();
     else location.hash = hash;
   }
+  window.addEventListener("keydown", (e) => e.key === "Escape" && closeSheet());
   window.addEventListener("hashchange", route);
   window.addEventListener("pageshow", (e) => e.persisted && route()); // back from LINE Login: drop the busy button
   route();
