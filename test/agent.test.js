@@ -1,11 +1,34 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costThb, quote, runTask } from "../src/agent.js";
+import { costThb, quote, runTask, stepOf } from "../src/agent.js";
 
 // A stand-in for the SDK client that returns canned responses and records each request.
 function fakeClient(...responses) {
   const calls = [];
-  return { calls, beta: { messages: { create: async (params) => { calls.push(structuredClone(params)); return responses.shift(); } } } };
+  const next = (params) => {
+    calls.push(structuredClone(params));
+    return responses.shift();
+  };
+  return {
+    calls,
+    beta: {
+      messages: {
+        create: async (params) => next(params),
+        // Like the SDK's stream: each finished content block fires "contentBlock", then the whole message resolves.
+        stream: (params) => {
+          const res = next(params);
+          const handlers = [];
+          return {
+            on: (event, cb) => event === "contentBlock" && handlers.push(cb),
+            finalMessage: async () => {
+              for (const block of res.content) handlers.forEach((h) => h(block));
+              return res;
+            },
+          };
+        },
+      },
+    },
+  };
 }
 const usage = (extra = {}) => ({ input_tokens: 1000, output_tokens: 200, ...extra });
 const toolUse = (name, input) => ({ type: "tool_use", id: "t1", name, input });
@@ -90,4 +113,32 @@ test("runTask stops after 5 paused turns", async () => {
   assert.equal(r.ok, false);
   assert.equal(r.error, "too many pauses");
   assert.equal(client.calls.length, 5);
+});
+
+test("while it runs, each search, page read and the final report becomes a step the user can see", async () => {
+  const paused = {
+    model: "claude-opus-5-5", stop_reason: "pause_turn", usage: usage(),
+    content: [
+      { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "ตั๋ว เชียงใหม่ ศุกร์" } },
+      { type: "web_search_tool_result", tool_use_id: "s1", content: [] },
+      { type: "server_tool_use", id: "s2", name: "web_fetch", input: { url: "https://www.airline-a.example/fares" } },
+      { type: "text", text: "..." },
+    ],
+  };
+  const report = { model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [] })] };
+  const steps = [];
+  await runTask({ text: "x", steps: "[]", size: "S" }, fakeClient(paused, report), new Date(), (s) => steps.push(s));
+  assert.deepEqual(steps, ['ค้นหา "ตั๋ว เชียงใหม่ ศุกร์"', "เปิดอ่าน airline-a.example", "สรุปผล"]);
+  assert.equal(stepOf({ type: "server_tool_use", name: "web_fetch", input: { url: "not a url" } }), null);
+  assert.equal(stepOf({ type: "server_tool_use", name: "web_search", input: {} }), null, "no query yet");
+});
+
+test("options come back as at most 3 cards, and a bad link is dropped from its card", async () => {
+  const opt = (name, url) => ({ name, price: "฿1,290", note: "บินตรง", url });
+  const report = {
+    model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(),
+    content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [opt("A", "https://a.example/x"), opt("B", "javascript:alert(1)"), opt("C", "https://c.example"), opt("D", "https://d.example")] })],
+  };
+  const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(report));
+  assert.deepEqual(r.options.map((o) => [o.name, o.url]), [["A", "https://a.example/x"], ["B", ""], ["C", "https://c.example"]]);
 });

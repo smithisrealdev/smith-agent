@@ -5,12 +5,14 @@
   --mut: #4A5778; --line: #E3E9F6; --soft: #EAF1FF; --field: #EEF3FC;
   --gtxt: #0B7A3E; --gsoft: #D9F5E6; --rtxt: #A81D0C; --rsoft: #FFE9E5;
   --ysoft: #FFF1C4; --ytxt: #7A5200; --psoft: #ECE6FF; --ptxt: #5B3CC4;
+  --press: 80ms; --base: 200ms; --ease-out: cubic-bezier(.2, .8, .2, 1);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #FFFFFF; color: var(--ink); font-family: "Prompt", sans-serif; -webkit-text-size-adjust: 100%; }
 button, input, textarea { font: inherit; color: inherit; }
 button { border: 0; cursor: pointer; background: none; padding: 0; }
 a { color: var(--blue); }
+a, button { -webkit-tap-highlight-color: transparent; } /* the press states below replace the grey flash */
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 
 #app {
@@ -43,7 +45,14 @@ p { margin: 0; }
 .btn.line { background: #06C755; } /* LINE's brand green, as LINE asks for its login button */
 .btn.text-danger { height: 48px; background: transparent; color: var(--rtxt); font-family: "Prompt", sans-serif; font-size: 15px; }
 .btn:disabled { background: var(--line); color: #5F6B8A; cursor: default; }
-.btn.busy { opacity: .75; }
+.btn[aria-busy="true"] { cursor: progress; }
+
+/* press feedback: transform and opacity only */
+.btn, .chip, .icon-btn, .credit-chip, .option { transition: transform var(--press) var(--ease-out); }
+.btn:active:not(:disabled), .chip:active, .icon-btn:active, .credit-chip:active { transform: scale(.97); }
+.option:active { transform: scale(.98); }
+a.item, button.item, .source, .link-btn { transition: opacity var(--press); }
+a.item:active, button.item:active, .source:active, .link-btn:active { opacity: .6; }
 .link-btn { color: var(--blue); font-weight: 600; font-size: 14px; min-height: 36px; display: inline-flex; align-items: center; }
 
 /* surfaces */
@@ -97,6 +106,26 @@ p { margin: 0; }
 .plan { border-radius: 24px; background: var(--soft); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .step { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; line-height: 1.45; }
 .step .n { flex: none; width: 28px; height: 28px; border-radius: 14px; background: #FFFFFF; font-family: "Mitr", sans-serif; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.step > span:last-child { min-width: 0; overflow-wrap: anywhere; padding-top: 3px; }
+.step .n.ok { color: var(--gtxt); }
+.step .n.now { background: var(--blue); color: #FFFFFF; }
+.enter { animation: rise var(--base) var(--ease-out) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes fade { from { opacity: 0; } }
+.slot { display: contents; } /* a redrawable part of a screen that takes no box of its own */
+.live-card { display: flex; align-items: center; gap: 12px; text-decoration: none; padding: 12px 14px; border-radius: 24px; background: var(--ink); color: #FFFFFF; }
+.live-card .s { color: #C9D4F2; }
+.live-card .tile { background: var(--blue); color: #FFFFFF; }
+.option { color: inherit; text-decoration: none; gap: 6px; }
+.option.best { box-shadow: 0 0 0 2px var(--blue); }
+.option .pill { align-self: flex-start; }
+.option .name { font-size: 16px; font-weight: 600; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
+.option .price { flex: none; max-width: 50%; text-align: right; font-family: "Mitr", sans-serif; font-weight: 700; font-size: 20px; line-height: 1.3; }
+.option .host { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--blue); overflow-wrap: anywhere; }
+.bone { display: block; flex: none; position: relative; overflow: hidden; border-radius: 10px; background: var(--field); }
+.bone::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .7), transparent); animation: sweep 1.4s infinite; }
+@keyframes sweep { to { transform: translateX(100%); } }
+@keyframes pulse { 50% { opacity: .5; } }
 .mascot { display: flex; justify-content: center; align-items: flex-end; min-height: 130px; }
 .rg { display: block; } /* a mascot's root is a span: give it its box wherever it sits */
 .wallet-card { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-radius: 28px; background: var(--yel); }
@@ -121,6 +150,13 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
 .toast { position: fixed; left: 16px; right: 16px; bottom: max(24px, env(safe-area-inset-bottom)); max-width: 448px; margin: 0 auto; padding: 14px 16px; border-radius: 18px; background: var(--ink); color: #FFFFFF; font-size: 14px; z-index: 10; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+/* reduced motion: no movement, but work still shows as a slow fade */
 @media (prefers-reduced-motion: reduce) {
-  .dots span { animation: none; opacity: .6; }
+  .dots span { animation-name: blink; }
+  .btn, .chip, .icon-btn, .credit-chip, .option { transition: none; }
+  .btn:active:not(:disabled), .chip:active, .icon-btn:active, .credit-chip:active, .option:active { transform: none; opacity: .7; }
+  .enter { animation-name: fade; }
+  .bone::after { animation: none; }
+  .bone { animation: pulse 2s infinite ease-in-out; }
 }

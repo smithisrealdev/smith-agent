@@ -202,3 +202,29 @@ test("without LINE Login there is no sign-in route", async (t) => {
   assert.equal((await fetch(`${s.base}/auth/line/callback?code=a&state=b`)).status, 404);
   assert.equal((await s.call(A, "GET", "/api/me")).body.login, null);
 });
+
+test("a running job shows live steps, and a finished one shows its option cards", async (t) => {
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const runTask = async (job, _client, _today, onProgress) => {
+    onProgress('ค้นหา "หูฟัง Sony"');
+    onProgress("เปิดอ่าน shop-b.example");
+    await gate;
+    return { ...RESULT, options: [{ name: "ร้าน B", price: "฿8,990", note: "ส่งฟรี", url: "https://b.example/x" }] };
+  };
+  const s = await start({ runTask });
+  t.after(s.close);
+  const { body } = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
+  await s.call(A, "POST", `/api/jobs/${body.job.id}/start`);
+  const running = await s.call(A, "GET", `/api/jobs/${body.job.id}`);
+  assert.equal(running.body.job.status, "running");
+  assert.deepEqual(running.body.job.progress.map((p) => p.text), ['ค้นหา "หูฟัง Sony"', "เปิดอ่าน shop-b.example"]);
+  assert.deepEqual((await s.call(A, "GET", "/api/jobs")).body.jobs[0].progress.length, 2, "the list carries it too, for the home card");
+  release();
+  const done = await waitFor(async () => {
+    const r = await s.call(A, "GET", `/api/jobs/${body.job.id}`);
+    return r.body.job.status === "done" && r.body.job;
+  });
+  assert.deepEqual(done.progress, [], "steps are dropped once the job is finished");
+  assert.deepEqual(done.options, [{ name: "ร้าน B", price: "฿8,990", note: "ส่งฟรี", url: "https://b.example/x" }]);
+});

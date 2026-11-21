@@ -94,7 +94,9 @@
 
   class InviteNeeded extends Error {}
   class LoginNeeded extends Error {}
+  class Stale extends Error {} // the user moved to another screen while this loaded
   async function api(method, path, body) {
+    const at = location.hash;
     let res;
     try {
       res = await fetch(path, {
@@ -106,10 +108,14 @@
       throw new Error("offline");
     }
     const data = await res.json().catch(() => ({}));
+    if (method === "GET" && location.hash !== at) throw new Stale(); // a late load must not paint over the newer screen
     if (res.status === 403 && data.error === "invite") throw new InviteNeeded();
     if (res.status === 401 && data.error === "login") throw new LoginNeeded();
     return { ok: res.ok, status: res.status, data };
   }
+
+  // Refresh a screen every few seconds. A network blip retries; leaving the screen stops it.
+  const poll = (fn, ms) => (poller = setTimeout(() => fn().catch((e) => e instanceof Stale || poll(fn, 5000)), ms));
 
   function toast(msg) {
     document.querySelector(".toast")?.remove();
@@ -238,23 +244,38 @@
     state.me = me.data;
     state.jobs = list.data.jobs || [];
     render(homeView());
-    if (state.jobs.some((j) => j.status === "running")) poller = setTimeout(refreshHome, 5000);
+    if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
   }
+  // Only the credit, the running card and the job list are redrawn, so the composer and what the user types stay put.
   async function refreshHome() {
-    if (!["", "#/", "#/home"].includes(location.hash)) return;
-    try {
-      state.jobs = (await api("GET", "/api/jobs")).data.jobs || state.jobs;
-      state.me = (await api("GET", "/api/me")).data || state.me;
-      if (document.activeElement?.id !== "cmd") render(homeView()); // never wipe what the user is typing
-    } catch {
-      // keep the screen as it is and try again
+    const [me, list] = await Promise.all([api("GET", "/api/me"), api("GET", "/api/jobs")]);
+    if (me.ok) state.me = me.data;
+    if (list.ok) state.jobs = list.data.jobs;
+    for (const [id, html] of Object.entries(homeParts())) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
     }
-    if (state.jobs.some((j) => j.status === "running")) poller = setTimeout(refreshHome, 5000);
+    if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
+  }
+  const liveCard = (j) => `<a class="item live-card" href="#/job/${j.id}"><span class="tile">${I.bolt}</span>
+      <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
+      <span class="s">${esc(j.progress?.at(-1)?.text || "กำลังเริ่มงาน")} ${DOTS}</span><span class="s">ผ่านไป ${duration(j.startedAt)}</span></span>${I.chev}</a>`;
+  function homeParts() {
+    const running = state.jobs.filter((j) => j.status === "running");
+    const jobs = state.jobs.filter((j) => !["rejected", "cancelled", "running"].includes(j.status)).slice(0, 5);
+    const empty = running.length ? "" : `<div class="sect">งานของฉัน</div><div class="note">${I.info}<span>งานที่สั่งจะอยู่ตรงนี้ Smith บอกราคาก่อนเริ่มทุกงาน และไม่สำเร็จไม่คิดเงิน</span></div>`;
+    return {
+      "home-credit": `<a class="credit-chip" href="#/wallet" aria-label="เครดิต ${baht(state.me.credit)}">${I.wallet} ${baht(state.me.credit)}</a>`,
+      "home-live": running.map(liveCard).join(""),
+      "home-jobs": jobs.length
+        ? `<div class="row" style="justify-content:space-between"><div class="sect">งานของฉัน</div><a class="link-btn" href="#/history">ดูทั้งหมด</a></div><div class="card list">${jobs.map(jobRow).join("")}</div>`
+        : empty,
+    };
   }
   function homeView() {
-    const jobs = state.jobs.filter((j) => !["rejected", "cancelled"].includes(j.status)).slice(0, 5);
-    return `<div class="topbar"><a class="icon-btn" href="#/settings" aria-label="ตั้งค่า">${I.person}</a><span class="grow"></span>
-        <a class="credit-chip" href="#/wallet" aria-label="เครดิต ${baht(state.me.credit)}">${I.wallet} ${baht(state.me.credit)}</a></div>
+    const slot = Object.fromEntries(Object.entries(homeParts()).map(([id, html]) => [id, `<div class="slot" id="${id}">${html}</div>`]));
+    return `<div class="topbar"><a class="icon-btn" href="#/settings" aria-label="ตั้งค่า">${I.person}</a><span class="grow"></span>${slot["home-credit"]}</div>
+      ${slot["home-live"]}
       <div class="row" style="align-items:flex-end"><h1 class="grow">อยากให้ Smith<br>ช่วยอะไรวันนี้</h1><span style="flex:none">${M.small || ""}</span></div>
       <div class="composer">
         <label class="sr" for="cmd">พิมพ์งานที่อยากให้ทำ</label>
@@ -262,10 +283,7 @@
         <button class="btn" data-act="send">สั่งงาน Agent</button>
       </div>
       <div class="hscroll" role="group" aria-label="ตัวอย่างงาน">${TEMPLATES.map((t, i) => `<button class="chip" data-act="template" data-arg="${i}">${I[t.icon]}${esc(t.label)}</button>`).join("")}</div>
-      <div class="row" style="justify-content:space-between"><div class="sect">งานของฉัน</div>${jobs.length ? '<a class="link-btn" href="#/history">ดูทั้งหมด</a>' : ""}</div>
-      ${jobs.length
-        ? `<div class="card list">${jobs.map(jobRow).join("")}</div>`
-        : `<div class="note">${I.info}<span>งานที่สั่งจะอยู่ตรงนี้ Smith บอกราคาก่อนเริ่มทุกงาน และไม่สำเร็จไม่คิดเงิน</span></div>`}`;
+      ${slot["home-jobs"]}`;
   }
 
   // ---------- quote
@@ -303,29 +321,56 @@
   // ---------- a started job: running, done or failed
   async function jobScreen(id) {
     const r = await api("GET", `/api/jobs/${id}`);
-    if (location.hash !== `#/job/${id}`) return; // the user moved on while this loaded
     if (!r.ok) return render(notFound());
     const { job, credit } = r.data;
     state.job = job;
     if (["quoted", "rejected"].includes(job.status)) return go(`#/quote/${id}`);
     if (job.status === "running") {
-      render(runningView(job));
-      poller = setTimeout(() => jobScreen(id).catch(() => (poller = setTimeout(() => jobScreen(id), 5000))), 3000);
-      return;
+      const box = document.getElementById("live");
+      if (box?.dataset.job !== String(id)) render(runningView(job));
+      else {
+        document.getElementById("elapsed").innerHTML = elapsed(job);
+        if (Number(box.dataset.n) !== job.progress.length) {
+          box.innerHTML = liveSteps(job, Number(box.dataset.n));
+          box.dataset.n = job.progress.length;
+          document.getElementById("live-now").textContent = job.progress.at(-1)?.text || "";
+        }
+      }
+      return poll(() => jobScreen(id), 3000);
     }
     if (job.status === "failed") return render(failedView(job, credit));
     if (job.status === "cancelled") return render(`${topbar(job.title)}<div class="center"><div class="mascot">${M.calm || ""}</div><h1 style="font-size:24px">ยกเลิกงานนี้แล้ว</h1><p class="muted">ไม่คิดเงิน</p></div>`);
     render(doneView(job, credit));
   }
+  const elapsed = (j) => `${I.clock} ผ่านไป ${duration(j.startedAt)} · ประมาณ ${j.minutes} นาที`;
+  // The agent's last few steps, newest last; steps after `seen` fade in. Before the first one arrives, the agreed plan.
+  const liveSteps = (j, seen = j.progress.length) => {
+    if (!j.progress.length) return j.steps.map((s, i) => `<div class="step"><span class="n">${i + 1}</span><span>${esc(s)}</span></div>`).join("");
+    const from = Math.max(0, j.progress.length - 5);
+    return j.progress.slice(from).map((p, k) => {
+      const i = from + k;
+      const now = i === j.progress.length - 1;
+      return `<div class="step${i >= seen ? " enter" : ""}"><span class="n ${now ? "now" : "ok"}">${svg(now ? PATHS.bolt : PATHS.check, 16)}</span><span>${esc(p.text)}${now ? ` ${DOTS}` : ""}</span></div>`;
+    }).join("");
+  };
   const runningView = (j) => `${topbar(j.title)}
       <div class="center" style="padding-top:4px"><div class="mascot">${M.work || ""}</div>
         <h1 role="status">กำลังทำงาน ${DOTS}</h1>
-        <span class="pill">${I.clock} ผ่านไป ${duration(j.startedAt)} · ประมาณ ${j.minutes} นาที</span></div>
-      <div class="plan">${j.steps.map((s, i) => `<div class="step"><span class="n">${i + 1}</span><span>${esc(s)}</span></div>`).join("")}</div>
+        <span class="pill" id="elapsed">${elapsed(j)}</span></div>
+      <div class="plan" id="live" data-job="${j.id}" data-n="${j.progress.length}">${liveSteps(j)}</div>
+      <p class="sr" aria-live="polite" id="live-now">${esc(j.progress.at(-1)?.text || "")}</p>
       <div class="note">${I.info}<span>ปิดแอปได้เลย งานยังทำต่อ กลับมาดูผลได้ที่หน้าแรก</span></div>
       <div class="grow"></div>
       <div class="row" style="justify-content:space-between;padding:0 4px"><span class="muted">ราคาที่ตกลงไว้</span><span class="money">${baht(j.price)}</span></div>
       <a class="btn second" href="#/">กลับหน้าแรก</a>`;
+  const optionCard = (o, i) => {
+    const url = /^https?:\/\//.test(o.url) ? o.url : "";
+    const body = `${i ? "" : `<span class="pill good">${svg(PATHS.check, 14)}แนะนำ</span>`}
+      <span class="row" style="align-items:flex-start"><span class="grow name">${esc(o.name)}</span>${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}</span>
+      ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${svg(PATHS.external, 16)}${esc(hostOf(url))}</span>` : ""}`;
+    const cls = `card pad col option${i ? "" : " best"}`;
+    return url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : `<div class="${cls}">${body}</div>`;
+  };
   function doneView(j, credit) {
     const refundable = j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3;
     return `${topbar(j.title)}
@@ -333,6 +378,7 @@
       ${j.status === "refunded" ? `<div class="note good">${I.check}<span>คืนเงิน ${baht(j.price)} เป็นเครดิตแล้ว</span></div>` : ""}
       ${j.status === "refund_review" ? `<div class="note warn">${I.clock}<span>ทีมงานกำลังตรวจคำขอคืนเงิน ภายใน 1 วันทำการ</span></div>` : ""}
       <div class="card pad pre" style="font-size:16px;line-height:1.6">${esc(j.answer)}</div>
+      ${j.options?.length ? `<div class="sect">ตัวเลือกที่เจอ</div>${j.options.map(optionCard).join("")}` : ""}
       <div class="sect">หลักฐานที่ตรวจเองได้</div>
       ${/^\/evidence\/[\w-]+\.png$/.test(j.evidence) ? `<a href="${esc(j.evidence)}" target="_blank" rel="noopener"><img class="evidence-img" src="${esc(j.evidence)}" alt="ภาพหน้าจอเว็บที่ Smith ใช้เป็นหลักฐาน แตะเพื่อดูภาพเต็ม"></a>` : ""}
       ${j.sources.length ? `<div class="card list">${j.sources.map(sourceRow).join("")}</div>` : '<p class="small muted" style="padding:0 4px">งานนี้ไม่มีลิงก์อ้างอิง</p>'}
@@ -342,6 +388,7 @@
         <div class="item"><span class="grow muted">เช็กข้อมูลเมื่อ</span><span>${esc(when(j.finishedAt))}</span></div>
         <div class="item"><span class="grow muted">เครดิตคงเหลือ</span><span>${baht(credit)}</span></div></div>
       <button class="btn" data-act="followup">สั่งต่อจากผลงานนี้</button>
+      <button class="btn second" data-act="retry">ทำงานนี้อีกครั้ง</button>
       ${refundable ? `<a class="btn text-danger" href="#/refund/${j.id}">ผลไม่ตรง ขอเงินคืน</a>` : ""}`;
   }
   const failedView = (j, credit) => `${topbar(j.title)}
@@ -468,9 +515,9 @@
       <button class="btn" data-act="reload">ลองใหม่</button>`;
 
   // ---------- actions (buttons carry data-act)
+  // Busy is not disabled: the button keeps its colour, says what it is doing, and ignores more taps.
   const busy = (btn, label) => {
-    btn.disabled = true;
-    btn.classList.add("busy");
+    btn.setAttribute("aria-busy", "true");
     if (label) btn.innerHTML = `${label} ${DOTS}`;
   };
   const actions = {
@@ -586,7 +633,7 @@
 
   app.addEventListener("click", async (e) => {
     const el = e.target.closest("[data-act]");
-    if (!el || el.disabled) return;
+    if (!el || el.disabled || el.getAttribute("aria-busy") === "true") return;
     e.preventDefault();
     try {
       await actions[el.dataset.act]?.(el.dataset.arg === undefined ? undefined : Number(el.dataset.arg), el);
@@ -607,8 +654,23 @@
   });
 
   // ---------- routing
+  let renders = 0;
   function render(html) {
+    renders++;
     app.innerHTML = html;
+  }
+  // Shown only when a screen takes longer than 150ms to load, shaped like the screen that is coming.
+  const bone = (style) => `<span class="bone" style="${style}"></span>`;
+  function skeleton(hash) {
+    const rows = (n) => `<div class="card list">${`<div class="item">${bone("width:40px;height:40px;border-radius:12px")}<span class="grow col">${bone("height:14px;width:70%")}${bone("height:12px;width:40%")}</span></div>`.repeat(n)}</div>`;
+    const bar = `<div class="topbar">${bone("width:44px;height:44px;border-radius:22px")}${bone("height:18px;width:45%")}<span class="gap44"></span></div>`;
+    const body = /^#\/(job|quote|refund)\//.test(hash)
+      ? `${bar}${bone("width:120px;height:120px;border-radius:60px;align-self:center")}${bone("height:28px;width:55%;align-self:center")}${bone("height:140px;border-radius:24px")}${rows(2)}`
+      : /^#\/(history|wallet|settings)$/.test(hash)
+        ? `${bar}${rows(5)}`
+        : `<div class="topbar">${bone("width:44px;height:44px;border-radius:22px")}${bone("width:96px;height:40px;border-radius:20px")}</div>
+          ${bone("height:34px;width:65%")}${bone("height:34px;width:45%;margin-top:-6px")}${bone("height:176px;border-radius:26px")}${rows(3)}`;
+    return `<p class="sr" role="status">กำลังโหลด</p>${body}`;
   }
   const ROUTES = [
     [/^#\/welcome$/, welcome],
@@ -634,13 +696,18 @@
     const hit = ROUTES.find(([re]) => re.test(hash));
     if (!hit) return go("#/");
     const arg = hit[0].exec(hash)[1];
+    const before = renders;
+    const slow = setTimeout(() => renders === before && render(skeleton(hash)), 150);
     try {
       await hit[1](arg && /^\d+$/.test(arg) ? Number(arg) : undefined);
       window.scrollTo(0, 0);
     } catch (err) {
+      if (err instanceof Stale) return;
       if (err instanceof InviteNeeded) return go("#/invite");
       if (err instanceof LoginNeeded) return go("#/login");
       render(errorView(err));
+    } finally {
+      clearTimeout(slow);
     }
   }
   function go(hash) {
@@ -648,5 +715,6 @@
     else location.hash = hash;
   }
   window.addEventListener("hashchange", route);
+  window.addEventListener("pageshow", (e) => e.persisted && route()); // back from LINE Login: drop the busy button
   route();
 })();

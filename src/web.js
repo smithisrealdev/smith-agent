@@ -26,6 +26,7 @@ export function jobView(j) {
     reason: j.reason || "",
     answer: j.answer || "",
     sources: JSON.parse(j.sources || "[]"),
+    options: JSON.parse(j.options || "[]"),
     evidence: j.evidence || "",
     createdAt: j.created_at,
     startedAt: j.started_at,
@@ -65,6 +66,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     }
   };
   const credit = (userId) => store.user(userId).credit;
+  const view = (j) => ({ ...jobView(j), progress: j.status === "running" ? runner.progress(j.id) : [] });
   const ownJob = (userId, id) => {
     const j = store.job(id);
     return j && j.user_id === userId ? j : null;
@@ -92,7 +94,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
       return json(res, 200, { ok: true });
     }
 
-    if (req.method === "GET" && path === "/api/jobs") return json(res, 200, { jobs: store.jobsOf(userId).map(jobView) });
+    if (req.method === "GET" && path === "/api/jobs") return json(res, 200, { jobs: store.jobsOf(userId).map(view) });
 
     if (req.method === "GET" && path === "/api/ledger") return json(res, 200, { credit: credit(userId), entries: store.ledgerOf(userId) });
 
@@ -108,7 +110,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
 
     if (m && !m[2] && req.method === "GET") {
       const j = ownJob(userId, id);
-      return j ? json(res, 200, { job: jobView(j), credit: credit(userId) }) : json(res, 404, { error: "not_found" });
+      return j ? json(res, 200, { job: view(j), credit: credit(userId) }) : json(res, 404, { error: "not_found" });
     }
 
     if (m && m[2] && req.method === "POST") {

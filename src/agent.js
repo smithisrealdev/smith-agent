@@ -41,7 +41,8 @@ Rules:
 - Stop as soon as you have a reliable answer; your search budget is small.
 When you finish, or if you cannot finish, call the report tool once:
 - ok: true only when the answer is reliable and actually does the task.
-- answer: the result in Thai, at most 8 short lines, with concrete names, prices in baht and dates.
+- answer: the result in Thai, at most 8 short lines, with concrete names, prices in baht and dates. When you give options, the answer is the recommendation and what to watch out for; do not list each option again.
+- options: when the task finds or compares choices, up to 3 of them, best first: name, price in baht as written on the page (or an empty string), a short Thai note, and the URL of the page that shows it. Otherwise an empty list.
 - summary: one Thai sentence on what you found, or on why you could not finish.
 - sources: up to 5 pages you used, with their URLs.
 - best_url: the one page that best shows the answer, or an empty string.`;
@@ -66,8 +67,17 @@ const REPORT_TOOL = {
         },
       },
       best_url: { type: "string" },
+      options: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { name: { type: "string" }, price: { type: "string" }, note: { type: "string" }, url: { type: "string" } },
+          required: ["name", "price", "note", "url"],
+          additionalProperties: false,
+        },
+      },
     },
-    required: ["ok", "answer", "summary", "sources", "best_url"],
+    required: ["ok", "answer", "summary", "sources", "best_url", "options"],
     additionalProperties: false,
   },
 };
@@ -86,6 +96,21 @@ export function costThb(model, u = {}) {
 
 const toolInput = (res, name) => res.content.find((b) => b.type === "tool_use" && b.name === name)?.input;
 const isWebUrl = (u) => /^https?:\/\/\S+$/.test(u || "");
+const hostOf = (u) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+// What the user sees while the agent works: one line per finished search, page read, or the final report.
+export function stepOf(block) {
+  if (block.type === "server_tool_use" && block.name === "web_search" && block.input?.query) return `ค้นหา "${block.input.query}"`;
+  if (block.type === "server_tool_use" && block.name === "web_fetch" && hostOf(block.input?.url)) return `เปิดอ่าน ${hostOf(block.input.url)}`;
+  if (block.type === "tool_use" && block.name === "report") return "สรุปผล";
+  return null;
+}
 
 export async function quote(text, client = getClient()) {
   const res = await client.beta.messages.create({
@@ -103,7 +128,7 @@ export async function quote(text, client = getClient()) {
   return { ...q, size: SIZES[q.size] ? q.size : "M", cost };
 }
 
-export async function runTask(job, client = getClient(), today = new Date()) {
+export async function runTask(job, client = getClient(), today = new Date(), onProgress = () => {}) {
   const size = SIZES[job.size] || SIZES.M;
   const date = today.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
   const steps = JSON.parse(job.steps || "[]").map((s, i) => `${i + 1}. ${s}`).join("\n");
@@ -122,7 +147,14 @@ export async function runTask(job, client = getClient(), today = new Date()) {
   };
   const usage = { cost: 0, input_tokens: 0, output_tokens: 0, searches: 0 };
   for (let turn = 0; turn < 5; turn++) {
-    const res = await client.beta.messages.create(params);
+    // Streamed so each search and page read can be shown while the job runs. The report tool's input stays
+    // buffered (no eager_input_streaming): it is small, and buffering keeps the strict schema check.
+    const stream = client.beta.messages.stream(params);
+    stream.on("contentBlock", (block) => {
+      const step = stepOf(block);
+      if (step) onProgress(step);
+    });
+    const res = await stream.finalMessage();
     usage.cost += costThb(res.model, res.usage);
     usage.input_tokens += res.usage?.input_tokens || 0;
     usage.output_tokens += res.usage?.output_tokens || 0;
@@ -140,6 +172,7 @@ export async function runTask(job, client = getClient(), today = new Date()) {
       summary: r.summary,
       sources: r.sources.filter((s) => isWebUrl(s.url)).slice(0, 5),
       bestUrl: isWebUrl(r.best_url) ? r.best_url : "",
+      options: (r.options || []).slice(0, 3).map((o) => ({ ...o, url: isWebUrl(o.url) ? o.url : "" })),
       error: r.ok === true ? "" : r.summary,
       usage,
     };

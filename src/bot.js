@@ -78,8 +78,11 @@ export function createBot({ store, line, quote, runner, publicUrl = "", log = co
       return line.push(job.user_id, [text(`ไม่สำเร็จ ไม่คิดเงิน: ${job.title}\n${r.answer}\nเครดิตเท่าเดิม ${credit}`)]);
     }
     const sources = r.sources.map((s, i) => `${i + 1}. ${s.title}\n${s.url}`);
+    const options = (r.options || []).map((o, i) => [`${i + 1}. ${o.name}${o.price ? ` · ${o.price}` : ""}`, o.note, o.url].filter(Boolean).join("\n"));
     const result = [
-      `เสร็จแล้ว: ${job.title}`, "", r.answer, "", "หลักฐาน", ...sources, "",
+      `เสร็จแล้ว: ${job.title}`, "", r.answer, "",
+      ...(options.length ? ["ตัวเลือกที่เจอ", ...options, ""] : []),
+      "หลักฐาน", ...sources, "",
       `เช็กเมื่อ ${clock()} · จ่าย ${baht(job.price)} · เครดิตเหลือ ${credit}`,
     ].join("\n");
     // The quick reply shows only on the last message, so the screenshot goes first.

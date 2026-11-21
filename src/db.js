@@ -20,7 +20,8 @@ export function openDb(path) {
       quote_cost REAL NOT NULL DEFAULT 0, run_cost REAL NOT NULL DEFAULT 0, -- THB actually spent on Claude
       input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, searches INTEGER NOT NULL DEFAULT 0,
       answer TEXT, sources TEXT, evidence TEXT, error TEXT,
-      refund_reason TEXT -- what the user said was wrong, to improve the agent
+      refund_reason TEXT, -- what the user said was wrong, to improve the agent
+      options TEXT        -- the choices the agent found, as JSON, shown as cards
     );
     CREATE TABLE IF NOT EXISTS ledger (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,6 +36,9 @@ export function openDb(path) {
       created_at TEXT NOT NULL
     );
   `);
+  // Databases made by an earlier version lack the newer columns: add them in place.
+  const have = new Set(db.prepare("PRAGMA table_info(jobs)").all().map((c) => c.name));
+  for (const col of ["refund_reason", "options"]) if (!have.has(col)) db.exec(`ALTER TABLE jobs ADD COLUMN ${col} TEXT`);
   return db;
 }
 
@@ -110,9 +114,9 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         const u = r.usage || {};
         run(
           `UPDATE jobs SET status = ?, finished_at = ?, run_cost = ?, input_tokens = ?, output_tokens = ?, searches = ?,
-             answer = ?, sources = ?, evidence = ?, error = ? WHERE id = ?`,
+             answer = ?, sources = ?, options = ?, evidence = ?, error = ? WHERE id = ?`,
           r.ok ? "done" : "failed", iso(), u.cost || 0, u.input_tokens || 0, u.output_tokens || 0, u.searches || 0,
-          r.answer || "", JSON.stringify(r.sources || []), r.evidence || "", r.error || "", jobId,
+          r.answer || "", JSON.stringify(r.sources || []), JSON.stringify(r.options || []), r.evidence || "", r.error || "", jobId,
         );
         if (!r.ok) move(j.user_id, j.price, "release", jobId);
         return job(jobId);

@@ -40,6 +40,7 @@ test("quote first, charge only after a successful run", async () => {
   assert.match(sent.at(-2).messages[0].text, /เริ่มแล้ว/);
   assert.equal(sent.at(-1).to, "u1");
   assert.match(lastText(sent), /เสร็จแล้ว: หาตั๋วไปเชียงใหม่[\s\S]*฿1,290[\s\S]*https:\/\/a\.example\/flight/);
+  assert.doesNotMatch(lastText(sent), /ตัวเลือกที่เจอ/, "no options, no options section");
   assert.deepEqual(actions(sent), ["refund:1"]);
   assert.equal(store.user("u1").credit, 11);
   const job = store.job(1);
@@ -179,4 +180,12 @@ test("stickers and photos get a hint instead of silence, and cost nothing", asyn
   await bot.handle({ type: "message", replyToken: "r", source: { type: "user", userId: "u1" }, message: { type: "sticker", packageId: "1", stickerId: "1" } });
   assert.match(lastText(sent), /อ่านได้เฉพาะข้อความ/);
   assert.equal(quotes, 0);
+});
+
+test("the LINE result lists the options the agent found, each with its price, note and link", async () => {
+  const options = [{ name: "Airline A 07:05", price: "฿1,290", note: "บินตรง", url: "https://a.example/flight" }, { name: "Airline B 09:30", price: "", note: "", url: "" }];
+  const { bot, sent } = setup({ runTask: async () => ({ ...RESULT, options }) });
+  await bot.handle(say("U1", "หาตั๋วไปเชียงใหม่"));
+  await bot.handle(tap("U1", "start:1"));
+  assert.match(lastText(sent), /ตัวเลือกที่เจอ\n1\. Airline A 07:05 · ฿1,290\nบินตรง\nhttps:\/\/a\.example\/flight\n2\. Airline B 09:30\n\nหลักฐาน/);
 });
