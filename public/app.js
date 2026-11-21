@@ -120,7 +120,7 @@
     const charged = ["done", "refund_review", "running"].includes(j.status);
     const top = j.options?.[0];
     // A finished job shows what it found: the first option's picture, or the logo of the site it came from.
-    const art = j.status !== "done" ? "" : picture(top) ? `<img class="logo photo" src="${esc(picture(top))}" alt="" loading="lazy">` : logoImg(hostOf(top?.url || j.sources?.[0]?.url));
+    const art = j.status !== "done" ? "" : picture(top) ? `<img class="logo photo" src="${esc(picture(top))}" alt="" loading="lazy">` : logoImg(brandOf(top) || hostOf(j.sources?.[0]?.url));
     return `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}${art}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
       <span class="s">${esc(when(j.createdAt))} · ${label}${j.status === "running" ? ` ${DOTS}` : ""}</span></span>
@@ -130,6 +130,7 @@
   const logoImg = (host) => (host ? `<img class="logo" src="/logo/${esc(host)}.png" alt="" loading="lazy">` : "");
   const picture = (o) => (/^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o?.image) ? o.image : ""); // the product's picture, when its page had one
   const siteTile = (url) => `<span class="tile">${D.link}${logoImg(hostOf(url))}</span>`;
+  const brandOf = (o) => (/^[a-z0-9.-]+$/.test(o?.brand) ? o.brand : hostOf(o?.url)); // whose logo an option carries: the brand's, else its page's
   const sourceRow = (s) =>
     /^https?:\/\//.test(s.url)
       ? `<a class="source" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${siteTile(s.url)}
@@ -349,7 +350,9 @@
   const optionCard = (o, i) => {
     const url = /^https?:\/\//.test(o.url) ? o.url : "";
     const body = `${i ? "" : `<span class="pill good">${svg(IC.bold.check, 14)}แนะนำ</span>`}
-      <span class="row" style="align-items:flex-start">${picture(o) ? `<img class="shot" src="${esc(picture(o))}" alt="" loading="lazy">` : url ? siteTile(url) : `<span class="tile grey">${D.tag}</span>`}
+      <span class="row" style="align-items:flex-start">${picture(o)
+        ? `<span class="shotbox"><img class="shot" src="${esc(picture(o))}" alt="" loading="lazy">${logoImg(brandOf(o)).replace('"logo"', '"logo badge"')}</span>`
+        : `<span class="tile${brandOf(o) ? "" : " grey"}">${brandOf(o) ? D.link : D.tag}${logoImg(brandOf(o))}</span>`}
         <span class="grow col" style="gap:4px;min-width:0"><span class="name">${esc(o.name)}</span>${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}
           ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${esc(hostOf(url))}${svg(IC.bold.external, 14)}</span>` : ""}</span></span>`;
     const cls = `card pad col option${i ? "" : " best"}`;

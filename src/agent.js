@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config, SIZES, MODEL_PRICES, SEARCH_USD } from "./config.js";
+import { logoHost } from "./logo.js";
 
 let shared;
 const getClient = () => (shared ??= new Anthropic()); // reads ANTHROPIC_API_KEY
@@ -42,7 +43,8 @@ Rules:
 When you finish, or if you cannot finish, call the report tool once:
 - ok: true only when the answer is reliable and actually does the task.
 - answer: the result in Thai, at most 8 short lines, with concrete names, prices in baht and dates. When you give options, the answer is the recommendation and what to watch out for; do not list each option again.
-- options: when the task finds or compares choices, up to 3 of them, best first: name, price in baht as written on the page (or an empty string), a short Thai note, and the URL of the page that shows it. Otherwise an empty list.
+- options: when the task finds or compares choices, up to 3 of them, best first: name, price in baht as written on the page (or an empty string), a short Thai note, the URL of the page that shows it, and brand_site. Otherwise an empty list.
+- brand_site: the main website domain of the brand or seller the option belongs to, such as airasia.com for an AirAsia flight found on a travel site, or lazada.co.th for a Lazada listing. An empty string when you are not sure.
 - summary: one Thai sentence on what you found, or on why you could not finish.
 - sources: up to 5 pages you used, with their URLs.
 - best_url: the one page that best shows the answer, or an empty string.`;
@@ -71,8 +73,8 @@ const REPORT_TOOL = {
         type: "array",
         items: {
           type: "object",
-          properties: { name: { type: "string" }, price: { type: "string" }, note: { type: "string" }, url: { type: "string" } },
-          required: ["name", "price", "note", "url"],
+          properties: { name: { type: "string" }, price: { type: "string" }, note: { type: "string" }, url: { type: "string" }, brand_site: { type: "string" } },
+          required: ["name", "price", "note", "url", "brand_site"],
           additionalProperties: false,
         },
       },
@@ -172,7 +174,11 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
       summary: r.summary,
       sources: r.sources.filter((s) => isWebUrl(s.url)).slice(0, 5),
       bestUrl: isWebUrl(r.best_url) ? r.best_url : "",
-      options: (r.options || []).slice(0, 3).map((o) => ({ ...o, url: isWebUrl(o.url) ? o.url : "" })),
+      // brand: the site whose logo the card shows, the brand's own when the agent named one, else the page's.
+      options: (r.options || []).slice(0, 3).map(({ brand_site, ...o }) => {
+        const url = isWebUrl(o.url) ? o.url : "";
+        return { ...o, url, brand: logoHost(`https://${brand_site}`) || logoHost(url) };
+      }),
       error: r.ok === true ? "" : r.summary,
       usage,
     };

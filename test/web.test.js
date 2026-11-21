@@ -229,7 +229,7 @@ test("a running job shows live steps, and a finished one shows its option cards"
     return r.body.job.status === "done" && r.body.job;
   });
   assert.deepEqual(done.progress, [], "steps are dropped once the job is finished");
-  assert.deepEqual(done.options, [{ name: "ร้าน B", price: "฿8,990", note: "ส่งฟรี", url: "https://b.example/x" }]);
+  assert.deepEqual(done.options, [{ name: "ร้าน B", price: "฿8,990", note: "ส่งฟรี", url: "https://b.example/x", brand: "b.example" }]);
 });
 
 test("a finished job saves its sites' logos, and /logo/ serves only those files", async (t) => {
@@ -246,7 +246,7 @@ test("a finished job saves its sites' logos, and /logo/ serves only those files"
     onProgress('ค้นหา "x"');
     onProgress("เปิดอ่าน b.example", "https://www.b.example/y");
     assert.deepEqual(runner.progress(1).map((p) => p.host), ["", "b.example"], "a page-read step carries its site, for the logo");
-    return { ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }, { name: "C", price: "", note: "", url: "https://c.example/" }] };
+    return { ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }, { name: "C", price: "", note: "", url: "https://c.example/", brand: "air.example" }] };
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, saveLogos, evidenceDir, log: { error() {} } });
   const handle = createWeb({ store, quote: async () => QUOTE, runner, evidenceDir, log: { error() {} } });
@@ -255,7 +255,7 @@ test("a finished job saves its sites' logos, and /logo/ serves only those files"
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
   const { job } = await runner.run(store.start("u", store.addQuote(store.user("u").id, "x", QUOTE).id).job);
-  assert.deepEqual(saved, [["https://www.b.example/y"], ["https://b.example/x", "https://b.example/y", "https://c.example/"]], "once while the page is read, once at the end");
+  assert.deepEqual(saved, [["https://www.b.example/y"], ["https://b.example/x", "https://b.example/y", "https://c.example/", "https://b.example/", "https://air.example/"]], "once while the page is read, once at the end");
   assert.deepEqual(JSON.parse(job.options).map((o) => o.logo), ["/logo/b.example.png", undefined], "an option knows whether its shop has a logo");
   const ok = await fetch(`${base}/logo/b.example.png`);
   assert.equal(ok.status, 200);

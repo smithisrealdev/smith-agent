@@ -136,11 +136,13 @@ test("while it runs, each search, page read and the final report becomes a step 
 });
 
 test("options come back as at most 3 cards, and a bad link is dropped from its card", async () => {
-  const opt = (name, url) => ({ name, price: "฿1,290", note: "บินตรง", url });
+  const opt = (name, url, brand_site = "") => ({ name, price: "฿1,290", note: "บินตรง", url, brand_site });
   const report = {
     model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(),
-    content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [opt("A", "https://a.example/x"), opt("B", "javascript:alert(1)"), opt("C", "https://c.example"), opt("D", "https://d.example")] })],
+    content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [opt("A", "https://www.a.example/x"), opt("B", "javascript:alert(1)", "evil/../x"), opt("C", "https://travel.example/c", "AirAsia.com"), opt("D", "https://d.example")] })],
   };
   const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(report));
-  assert.deepEqual(r.options.map((o) => [o.name, o.url]), [["A", "https://a.example/x"], ["B", ""], ["C", "https://c.example"]]);
+  assert.deepEqual(r.options.map((o) => [o.name, o.url]), [["A", "https://www.a.example/x"], ["B", ""], ["C", "https://travel.example/c"]]);
+  assert.deepEqual(r.options.map((o) => o.brand), ["a.example", "", "airasia.com"], "the logo is the brand's when the agent names it, else the page's site");
+  assert.equal("brand_site" in r.options[0], false);
 });

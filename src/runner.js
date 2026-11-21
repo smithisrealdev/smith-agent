@@ -26,8 +26,10 @@ export function createRunner({ store, runTask, screenshot, saveLogos = async () 
     if (!r.ok) r.answer = r.summary || "Smith หาคำตอบที่เชื่อถือได้ไม่เจอ"; // what the user reads on a failed job
     if (r.ok) {
       r.options ||= [];
-      const [have] = await Promise.all([saveLogos([...r.sources, ...r.options].map((x) => x.url), logos), saveImages(r.options, evidenceDir, job.id)]);
-      for (const o of r.options) if (have?.includes(logoHost(o.url))) o.logo = `/logo/${logoHost(o.url)}.png`; // LINE must know the file exists
+      for (const o of r.options) o.brand ||= logoHost(o.url);
+      const sites = [...r.sources.map((s) => s.url), ...r.options.map((o) => o.url), ...r.options.map((o) => o.brand && `https://${o.brand}/`)].filter(Boolean);
+      const [have] = await Promise.all([saveLogos(sites, logos), saveImages(r.options, evidenceDir, job.id)]);
+      for (const o of r.options) if (have?.includes(o.brand)) o.logo = `/logo/${o.brand}.png`; // LINE must know the file exists
     }
     if (r.ok && r.bestUrl) {
       mkdirSync(evidenceDir, { recursive: true });

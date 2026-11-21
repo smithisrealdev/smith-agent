@@ -81,6 +81,8 @@ a.item:active, button.item:active, .source:active, .link-btn:active { opacity: .
 .logo { position: absolute; inset: 0; width: 100%; height: 100%; padding: 6px; border-radius: inherit; background: #FFFFFF; box-shadow: inset 0 0 0 1px var(--line); object-fit: contain; }
 .step .n .logo { padding: 5px; }
 .logo.photo { padding: 0; object-fit: cover; }
+.shotbox { position: relative; flex: none; display: flex; }
+.logo.badge { inset: auto -5px -5px auto; width: 28px; height: 28px; padding: 3px; border-radius: 9px; box-shadow: 0 0 0 1px var(--line); } /* the brand, on the corner of its product picture */
 .tile.good { background: var(--gsoft); color: var(--gtxt); }
 .tile.bad { background: var(--rsoft); color: var(--rtxt); }
 .tile.warn { background: var(--ysoft); color: var(--ytxt); }
