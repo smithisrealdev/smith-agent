@@ -17,7 +17,7 @@ COPY public ./public
 # Mount a persistent volume at /data: it holds the SQLite database and the evidence screenshots.
 ENV NODE_ENV=production PORT=3000 DB_PATH=/data/smith.db EVIDENCE_DIR=/data/evidence
 VOLUME /data
-USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
-CMD ["node", "--disable-warning=ExperimentalWarning", "src/server.js"]
+# Hosts often mount their disk at /data owned by root: start as root only to hand it to the app user, then run as that user.
+CMD ["sh", "-c", "chown -R node:node /data 2>/dev/null; exec setpriv --reuid=node --regid=node --init-groups node --disable-warning=ExperimentalWarning src/server.js"]

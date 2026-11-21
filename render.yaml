@@ -1,0 +1,20 @@
+# Deploy on Render from a phone or computer: Dashboard > New > Blueprint > pick this repository.
+# Render asks for the two secrets below; add LINE keys later under Environment if you use LINE.
+services:
+  - type: web
+    name: smith-agent
+    runtime: docker
+    plan: starter # a persistent disk needs a paid instance; the free one loses data on every restart
+    region: singapore
+    healthCheckPath: /healthz
+    disk:
+      name: smith-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: WEB_INVITE_CODE
+        sync: false
+      - key: START_CREDIT
+        value: "200" # invite-only test: testers start with enough credit, no one has to add it by hand

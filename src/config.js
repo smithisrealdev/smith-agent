@@ -3,7 +3,7 @@ const env = process.env;
 
 export const config = {
   port: Number(env.PORT || 3000),
-  publicUrl: (env.PUBLIC_URL || "").replace(/\/$/, ""), // https URL of this server, needed for evidence images in LINE
+  publicUrl: (env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || "").replace(/\/$/, ""), // https URL of this server (Render sets its own), for LINE images and LINE Login
   dbPath: env.DB_PATH || "data/smith.db",
   evidenceDir: env.EVIDENCE_DIR || "data/evidence",
   lineSecret: env.LINE_CHANNEL_SECRET || "",
