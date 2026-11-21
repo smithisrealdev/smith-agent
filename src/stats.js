@@ -38,6 +38,16 @@ export function stats(db) {
   };
 }
 
+// One line per recent job, plus why it failed, was refunded or turned down: for reading the test by hand.
+export function formatJobs(db, limit = 20) {
+  const rows = db.prepare("SELECT * FROM jobs ORDER BY id DESC LIMIT ?").all(limit);
+  return rows.map((j) => {
+    const secs = j.started_at && j.finished_at ? `${Math.round((Date.parse(j.finished_at) - Date.parse(j.started_at)) / 1000)} วินาที` : "-";
+    const why = j.refund_reason ? `คืนเงิน: ${j.refund_reason}` : j.status === "failed" ? j.error || j.answer : j.status === "rejected" ? j.reason : "";
+    return `#${j.id} ${j.status} · ราคา ฿${j.price} · ต้นทุน ฿${(j.quote_cost + j.run_cost).toFixed(2)} · ${secs} · ${j.title || j.text}${why ? `\n    ${why}` : ""}`;
+  }).join("\n") || "ยังไม่มีงาน";
+}
+
 export function formatStats(s) {
   const pct = (x) => `${(x * 100).toFixed(0)}%`;
   const thb = (x) => `฿${x.toFixed(2)}`;
