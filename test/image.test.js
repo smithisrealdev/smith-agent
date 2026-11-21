@@ -16,7 +16,8 @@ test("the preview picture is read from a page's meta tags, whatever their order 
 test("options get a picture only from public pages, with every redirect checked, and only real, small images", async () => {
   const dir = mkdtempSync(join(tmpdir(), "smith-"));
   const html = (img) => new Response(`<html><head><meta property="og:image" content="${img}"></head>`, { headers: { "content-type": "text/html; charset=utf-8" } });
-  const image = (type, bytes = 3) => new Response(new Uint8Array(bytes), { headers: { "content-type": type } });
+  const JPEG = [0xff, 0xd8, 0xff, 0xe0];
+  const image = (type, bytes = JPEG) => new Response(new Uint8Array(bytes), { headers: { "content-type": type } });
   const to = (location) => new Response(null, { status: 302, headers: { location } });
   const pages = {
     "https://shop.example/ok": () => to("https://www.shop.example/ok"),
@@ -25,9 +26,11 @@ test("options get a picture only from public pages, with every redirect checked,
     "https://shop.example/inward": () => html("https://cdn.example/inward.png"),
     "https://cdn.example/inward.png": () => to("https://intranet.example/secret.png"),
     "https://shop.example/svg": () => html("https://cdn.example/x.svg"),
-    "https://cdn.example/x.svg": () => image("image/svg+xml"),
+    "https://cdn.example/x.svg": () => image("image/svg+xml", [...Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')]),
     "https://shop.example/huge": () => html("https://cdn.example/huge.png"),
-    "https://cdn.example/huge.png": () => image("image/png", 1_600_000),
+    "https://cdn.example/huge.png": () => image("image/png", new Uint8Array(1_600_000).fill(0xff)),
+    "https://shop.example/fake": () => html("https://cdn.example/fake.png"),
+    "https://cdn.example/fake.png": () => image("image/png", [...Buffer.from("<html><script>alert(1)</script>")]),
     "https://shop.example/none": () => new Response("<html>no tags</html>", { headers: { "content-type": "text/html" } }),
     "https://shop.example/gone": () => new Response("", { status: 404 }),
   };
@@ -38,13 +41,20 @@ test("options get a picture only from public pages, with every redirect checked,
     return pages[url]();
   };
   const resolve = async (host) => [{ address: host === "intranet.example" ? "10.0.0.5" : "203.0.113.9" }];
-  const options = ["ok", "inward", "svg", "huge", "none", "gone"].map((k) => ({ name: k, url: `https://shop.example/${k}` }));
+  const options = ["ok", "inward", "svg", "huge", "fake", "none", "gone"].map((k) => ({ name: k, url: `https://shop.example/${k}` }));
   options.push({ name: "private", url: "https://intranet.example/p" }, { name: "no link", url: "" });
   await saveImages(options, dir, 7, { fetchImpl, resolve });
   const got = Object.fromEntries(options.map((o) => [o.name, o.image]));
   assert.match(got.ok, /^\/evidence\/7-[0-9a-f]{24}\.jpg$/);
-  assert.equal(readFileSync(join(dir, got.ok.split("/").pop())).length, 3);
+  assert.equal(readFileSync(join(dir, got.ok.split("/").pop())).length, 4);
   assert.deepEqual(readdirSync(dir).length, 1, "nothing else was saved");
-  for (const k of ["inward", "svg", "huge", "none", "gone", "private", "no link"]) assert.equal(got[k], undefined, k);
+  for (const k of ["inward", "svg", "huge", "fake", "none", "gone", "private", "no link"]) assert.equal(got[k], undefined, k);
   assert.ok(!asked.some((u) => u.includes("intranet.example")), "a private address is never contacted");
+});
+
+test("a hostile page with thousands of unclosed meta tags is read in linear time", () => {
+  const started = performance.now();
+  assert.equal(ogImage("<meta ".repeat(90_000), "https://x.example/"), "");
+  assert.equal(ogImage(`${"<meta x>".repeat(60_000)}<meta property="og:image" content="/a.png">`, "https://x.example/"), "https://x.example/a.png");
+  assert.ok(performance.now() - started < 1000, `took ${Math.round(performance.now() - started)} ms`);
 });

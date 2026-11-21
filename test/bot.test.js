@@ -223,3 +223,10 @@ test("if LINE refuses the cards, the result still arrives as text with the optio
   assert.match(lastText(sent), /ตัวเลือกที่เจอ\n1\. Airline A 07:05 · ฿1,290/);
   assert.deepEqual(actions(sent), ["refund:1"]);
 });
+
+test("LINE card links are fully percent-encoded, and blank text is left out", async () => {
+  const { optionCards } = await import("../src/line.js");
+  const [card] = optionCards([{ name: "  ", price: " ", note: "", url: "https://a.example/s?q=a|b^c", image: "", logo: "" }], "https://smith.example").contents.contents;
+  assert.equal(card.footer.contents[0].action.uri, "https://a.example/s?q=a%7Cb%5Ec");
+  assert.deepEqual(card.body.contents.map((c) => c.text), ["ตัวเลือก", undefined]);
+});

@@ -285,3 +285,21 @@ test("product pictures are served like evidence, and deleting the account delete
   assert.equal((await s.call(A, "DELETE", "/api/me")).status, 200);
   assert.equal(existsSync(join(evidenceDir, name)), false, "the picture went with the account");
 });
+
+test("files saved for a job whose account was deleted while it ran are removed", async () => {
+  const evidenceDir = mkdtempSync(join(tmpdir(), "smith-"));
+  const store = makeStore(openDb(":memory:"), { startCredit: 20 });
+  const name = `1-${"cd".repeat(12)}.jpg`;
+  const saveImages = async (options, dir) => {
+    writeFileSync(join(dir, name), "jpg");
+    options[0].image = `/evidence/${name}`;
+  };
+  const runTask = async (job) => {
+    store.deleteUser(job.user_id); // the user deletes their account mid-run
+    return { ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }] };
+  };
+  const runner = createRunner({ store, runTask, screenshot: async () => false, saveImages, evidenceDir, log: { error() {} } });
+  const { job } = await runner.run(store.start("u", store.addQuote(store.user("u").id, "x", QUOTE).id).job);
+  assert.equal(job, undefined);
+  assert.equal(existsSync(join(evidenceDir, name)), false);
+});

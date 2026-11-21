@@ -36,7 +36,7 @@ export const image = (url) => ({ type: "image", originalContentUrl: url, preview
 export const lineCanShow = (file) => /\.(jpg|png)$/.test(file || "");
 const link = (url) => {
   try {
-    const href = new URL(url).href;
+    const href = new URL(url).href.replace(/[|^`{}\\"<>]/g, encodeURIComponent); // URL leaves these raw in a query; LINE wants RFC 3986
     return href.length <= 1000 ? href : "";
   } catch {
     return "";
@@ -55,9 +55,9 @@ export const optionCards = (options, publicUrl) => ({
       body: {
         type: "box", layout: "vertical", spacing: "sm",
         contents: [
-          { type: "text", text: o.name || "ตัวเลือก", weight: "bold", wrap: true, maxLines: 3 },
-          o.price && { type: "text", text: o.price, weight: "bold", size: "xl", color: "#0B1B4D" },
-          o.note && { type: "text", text: o.note, size: "sm", color: "#4A5778", wrap: true },
+          { type: "text", text: o.name?.trim() || "ตัวเลือก", weight: "bold", wrap: true, maxLines: 3 },
+          o.price?.trim() && { type: "text", text: o.price.trim(), weight: "bold", size: "xl", color: "#0B1B4D" },
+          o.note?.trim() && { type: "text", text: o.note.trim(), size: "sm", color: "#4A5778", wrap: true },
           link(o.url) && {
             type: "box", layout: "horizontal", spacing: "sm", alignItems: "center", // the shop: its logo and its name
             contents: [

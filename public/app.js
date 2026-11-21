@@ -67,12 +67,13 @@
   // ---------- state and server calls
   const state = { me: null, jobs: [], job: null, draft: saved.get("draft") || "", slide: 0, refund: null };
   let poller;
+  let gen = 0; // bumped on every route change: loads and polls from an older screen stop instead of painting
 
   class InviteNeeded extends Error {}
   class LoginNeeded extends Error {}
   class Stale extends Error {} // the user moved to another screen while this loaded
   async function api(method, path, body) {
-    const at = location.hash;
+    const at = gen;
     let res;
     try {
       res = await fetch(path, {
@@ -84,14 +85,16 @@
       throw new Error("offline");
     }
     const data = await res.json().catch(() => ({}));
-    if (method === "GET" && location.hash !== at) throw new Stale(); // a late load must not paint over the newer screen
+    if (method === "GET" && gen !== at) throw new Stale(); // a late load must not paint over the newer screen
     if (res.status === 403 && data.error === "invite") throw new InviteNeeded();
     if (res.status === 401 && data.error === "login") throw new LoginNeeded();
     return { ok: res.ok, status: res.status, data };
   }
 
   // Refresh a screen every few seconds. A network blip retries; leaving the screen stops it.
-  const poll = (fn, ms) => (poller = setTimeout(() => fn().catch((e) => e instanceof Stale || poll(fn, 5000)), ms));
+  const poll = (fn, ms, at = gen) => {
+    poller = setTimeout(() => at === gen && fn().catch((e) => e instanceof Stale || (at === gen && poll(fn, 5000, at))), ms);
+  };
 
   function toast(msg) {
     document.querySelector(".toast")?.remove();
@@ -130,7 +133,7 @@
   const logoImg = (host) => (host ? `<img class="logo" src="/logo/${esc(host)}.png" alt="" loading="lazy">` : "");
   const picture = (o) => (/^\/evidence\/[\w-]+\.(png|jpg|webp)$/.test(o?.image) ? o.image : ""); // the product's picture, when its page had one
   const siteTile = (url) => `<span class="tile">${D.link}${logoImg(hostOf(url))}</span>`;
-  const brandOf = (o) => (/^[a-z0-9.-]+$/.test(o?.brand) ? o.brand : hostOf(o?.url)); // whose logo an option carries: the brand's, else its page's
+  const brandOf = (o) => (/^[a-z0-9.-]+$/.test(o?.brand || "") ? o.brand : hostOf(o?.url)); // `|| ""`: test(undefined) checks the text "undefined" // whose logo an option carries: the brand's, else its page's
   const sourceRow = (s) =>
     /^https?:\/\//.test(s.url)
       ? `<a class="source" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${siteTile(s.url)}
@@ -679,6 +682,7 @@
     [/^(#\/?|#\/home)?$/, home],
   ];
   async function route() {
+    gen++;
     clearTimeout(poller);
     const hash = location.hash;
     if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite|privacy|terms|login)/.test(hash)) return go("#/welcome");

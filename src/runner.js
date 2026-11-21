@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { logoHost } from "./logo.js";
 
 // One job from start to finish, shared by the LINE bot and the web app:
@@ -38,7 +39,10 @@ export function createRunner({ store, runTask, screenshot, saveLogos = async () 
       if (await screenshot(r.bestUrl, join(evidenceDir, name))) r.evidence = `/evidence/${name}`;
     }
     live.delete(job.id);
-    return { job: store.finish(job.id, r), r };
+    const done = store.finish(job.id, r);
+    // The account was deleted while this ran: its files were written after the delete, so remove them now.
+    if (!done) for (const f of [r.evidence, ...(r.options || []).map((o) => o.image)].filter(Boolean)) await rm(join(evidenceDir, basename(f)), { force: true });
+    return { job: done, r };
   }
 
   // Jobs still "running" after a restart will never finish: give the credit back.
