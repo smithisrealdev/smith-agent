@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { openDb, makeStore } from "../src/db.js";
 import { createRunner } from "../src/runner.js";
 import { createWeb } from "../src/web.js";
@@ -227,4 +230,27 @@ test("a running job shows live steps, and a finished one shows its option cards"
   });
   assert.deepEqual(done.progress, [], "steps are dropped once the job is finished");
   assert.deepEqual(done.options, [{ name: "ร้าน B", price: "฿8,990", note: "ส่งฟรี", url: "https://b.example/x" }]);
+});
+
+test("a finished job saves its sites' logos, and /logo/ serves only those files", async (t) => {
+  const evidenceDir = mkdtempSync(join(tmpdir(), "smith-"));
+  const store = makeStore(openDb(":memory:"), { startCredit: 20 });
+  const saved = [];
+  const saveLogos = async (urls, dir) => {
+    saved.push(urls);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "b.example.png"), "png");
+  };
+  const runner = createRunner({ store, runTask: async () => ({ ...RESULT, options: [{ name: "B", price: "", note: "", url: "https://b.example/y" }] }), screenshot: async () => false, saveLogos, evidenceDir, log: { error() {} } });
+  const handle = createWeb({ store, quote: async () => QUOTE, runner, evidenceDir, log: { error() {} } });
+  const server = createServer(async (req, res) => (await handle(req, res)) || res.writeHead(404).end());
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}`;
+  await runner.run(store.start("u", store.addQuote(store.user("u").id, "x", QUOTE).id).job);
+  assert.deepEqual(saved, [["https://b.example/x", "https://b.example/y"]]);
+  const ok = await fetch(`${base}/logo/b.example.png`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get("content-type"), "image/png");
+  for (const path of ["/logo/other.example.png", "/logo/..%2Fsecret.png", "/logo/b.example.png/..", "/logo/B.example.png"]) assert.equal((await fetch(base + path)).status, 404, path);
 });

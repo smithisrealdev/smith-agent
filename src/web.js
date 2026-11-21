@@ -11,7 +11,7 @@ const TYPES = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
 };
-const APP_FILES = new Set(["index.html", "app.js", "app.css", "mascots.js", "manifest.webmanifest", "icon.svg", "icon-180.png"]);
+const APP_FILES = new Set(["index.html", "app.js", "app.css", "mascots.js", "icons.js", "manifest.webmanifest", "icon.svg", "icon-180.png"]);
 
 // What the app sees of a job: never the raw row, so costs, tokens and internal errors stay on the server.
 export function jobView(j) {
@@ -71,10 +71,10 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     const j = store.job(id);
     return j && j.user_id === userId ? j : null;
   };
-  const sendFile = async (res, file, type) => {
+  const sendFile = async (res, file, type, cache = "no-cache") => {
     try {
       const data = await readFile(file);
-      res.writeHead(200, { "Content-Type": type, "Cache-Control": "no-cache" });
+      res.writeHead(200, { "Content-Type": type, "Cache-Control": cache });
       res.end(data);
     } catch {
       res.writeHead(404);
@@ -156,6 +156,8 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     if (req.method === "GET" && !path.startsWith("/api/")) {
       const evidence = /^\/evidence\/(\d+-[0-9a-f]{24}\.png)$/.exec(path);
       if (evidence) return sendFile(res, join(evidenceDir, evidence[1]), TYPES[".png"]);
+      const logo = /^\/logo\/([a-z0-9-]+(?:\.[a-z0-9-]+)+\.png)$/.exec(path); // a site's logo, saved when a job finished
+      if (logo) return sendFile(res, join(evidenceDir, "logos", logo[1]), TYPES[".png"], "public, max-age=604800");
       const name = path === "/" ? "index.html" : path.slice(1);
       return APP_FILES.has(name) ? sendFile(res, join(publicDir, name), TYPES[extname(name)]) : false;
     }

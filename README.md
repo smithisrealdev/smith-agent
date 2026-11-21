@@ -290,6 +290,8 @@ node --disable-warning=ExperimentalWarning src/cli.js refund <เลขงาน
 | `src/agent.js` | เรียก Claude: ประเมินราคา และทำงานด้วย web search / web fetch |
 | `src/db.js` | เครดิตและงานใน SQLite ทุกการเปลี่ยนยอดมีบันทึกใน `ledger` |
 | `src/evidence.js` | แคปหน้าจอหลักฐานด้วย Playwright เฉพาะเว็บสาธารณะ |
+| `src/logo.js` | เก็บโลโก้ของเว็บในผลงานตอนงานเสร็จ (ขอจากบริการ favicon ของ Google ฝั่งเซิร์ฟเวอร์ ส่งไปแค่ชื่อเว็บ) เว็บที่ไม่มีโลโก้แอปจะแสดงไอคอนลูกโลกแทน |
+| `public/icons.js` | ไอคอนทั้งแอป สร้างจาก Phosphor Icons (MIT) และโลโก้ LINE ด้วย `scripts/gen_icons.py` |
 | `src/stats.js`, `src/cli.js` | ตัวเลขการทดลองและคำสั่งทีมงาน |
 | `src/line.js` | เรียก LINE Messaging API |
 

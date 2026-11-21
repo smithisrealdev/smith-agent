@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 // One job from start to finish, shared by the LINE bot and the web app:
 // run the agent, keep a screenshot as evidence when possible, then settle the credit.
-export function createRunner({ store, runTask, screenshot, evidenceDir = "data/evidence", log = console }) {
+export function createRunner({ store, runTask, screenshot, saveLogos = async () => {}, evidenceDir = "data/evidence", log = console }) {
   const live = new Map(); // job id -> steps so far, shown while it runs; gone once it finishes
 
   async function run(job) {
@@ -18,6 +18,7 @@ export function createRunner({ store, runTask, screenshot, evidenceDir = "data/e
       r = { ok: false, error: String(err?.message || err), summary: "ระบบขัดข้องระหว่างทำงาน", sources: [] };
     }
     if (!r.ok) r.answer = r.summary || "Smith หาคำตอบที่เชื่อถือได้ไม่เจอ"; // what the user reads on a failed job
+    if (r.ok) await saveLogos([...r.sources, ...(r.options || [])].map((x) => x.url), join(evidenceDir, "logos"));
     if (r.ok && r.bestUrl) {
       mkdirSync(evidenceDir, { recursive: true });
       // An unguessable name: the image is served without login (LINE fetches it), so the URL itself is the key.

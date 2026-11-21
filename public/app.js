@@ -56,36 +56,12 @@
     return `${Math.floor(s / 60)} นาที${s % 60 ? ` ${s % 60} วินาที` : ""}`;
   };
 
-  const PATHS = {
-    back: '<path d="M12.5 4l-6 6 6 6"/>',
-    chev: '<path d="M8 4.5l5.5 5.5L8 15.5"/>',
-    chevd: '<path d="M4.5 8l5.5 5.5L15.5 8"/>',
-    person: '<circle cx="10" cy="7" r="3.2"/><path d="M3.8 17c.8-3.2 3.3-5 6.2-5s5.4 1.8 6.2 5"/>',
-    wallet: '<rect x="2.5" y="5" width="15" height="11" rx="2.5"/><path d="M13 10.5h2"/>',
-    check: '<path d="M4 10.5l3.6 3.6L16 6"/>',
-    x: '<path d="M5 5l10 10M15 5L5 15"/>',
-    clock: '<circle cx="10" cy="10" r="7.5"/><path d="M10 6v4.2l2.8 1.8"/>',
-    bolt: '<path d="M11 2.5L4.5 11H10l-1 6.5L15.5 9H10z"/>',
-    refund: '<path d="M7 5L3.5 8.5 7 12"/><path d="M4 8.5h8a4.5 4.5 0 010 9H9"/>',
-    info: '<circle cx="10" cy="10" r="7.5"/><path d="M10 9v5M10 6.2v.3"/>',
-    link: '<path d="M8.5 11.5l3-3"/><path d="M7 9.5l-1.8 1.8a2.8 2.8 0 004 4L11 13.5"/><path d="M13 10.5l1.8-1.8a2.8 2.8 0 00-4-4L9 6.5"/>',
-    external: '<path d="M8 4H4.5v11.5H16V12"/><path d="M11 3.5h5.5V9M16.5 3.5L9 11"/>',
-    receipt: '<path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5z"/><path d="M7.5 7h5M7.5 10h5"/>',
-    shield: '<path d="M10 2.5l6 2.5v4.5c0 4-2.6 6.7-6 8-3.4-1.3-6-4-6-8V5z"/><path d="M7.2 10l2 2 3.6-3.8"/>',
-    plane: '<path d="M2.5 11.5l15-6-4 12-3.5-4.5z"/><path d="M10 13l7.5-7.5"/>',
-    tag: '<path d="M3 3h6.5l8 8-6.5 6.5-8-8z"/><circle cx="7" cy="7" r="1.2"/>',
-    doc: '<path d="M5 2.5h7l3.5 3.5v11.5H5z"/><path d="M12 2.5V6h3.5M7.5 10h5M7.5 13h5"/>',
-    food: '<path d="M6 2.5v15M3.5 2.5V7a2.5 2.5 0 005 0V2.5M14 17.5V2.5c-2 1-3 3.5-3 6.5h3"/>',
-    help: '<circle cx="10" cy="10" r="7.5"/><path d="M7.8 7.8a2.3 2.3 0 114 1.6c-.9.6-1.8 1.1-1.8 2.3M10 14.2v.3"/>',
-    trash: '<path d="M3.5 5.5h13M8 5.5V3.5h4v2M5.5 5.5l.8 11.5h7.4l.8-11.5"/>',
-    list: '<path d="M7 5.5h10M7 10h10M7 14.5h10M3.5 5.5h.5M3.5 10h.5M3.5 14.5h.5"/>',
-    lock: '<rect x="4" y="9" width="12" height="8.5" rx="2"/><path d="M6.8 9V6.5a3.2 3.2 0 016.4 0V9"/>',
-    chat: '<path d="M10 3.5c4.4 0 7.5 2.6 7.5 5.8 0 3.4-3.6 6-7.6 7.7.3-.8.4-1.6.3-2C5.7 14.6 2.5 12.3 2.5 9.3 2.5 6.1 5.6 3.5 10 3.5z"/>',
-    logout: '<path d="M8 3.5H4.5v13H8M12.5 6.5L16 10l-3.5 3.5M16 10H7.5"/>',
-  };
-  const svg = (d, size = 20, sw = 2.2) =>
-    `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-  const I = Object.fromEntries(Object.entries(PATHS).map(([k, d]) => [k, svg(d)]));
+  // Icons come from icons.js: bold for controls and text, duotone inside tiles. The LINE mark is LINE's own.
+  const IC = window.ICONS || { bold: {}, duotone: {}, line: "" };
+  const svg = (d, size = 20, box = 256) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 ${box} ${box}" fill="currentColor">${d || ""}</svg>`;
+  const I = Object.fromEntries(Object.entries(IC.bold).map(([k, d]) => [k, svg(d)]));
+  const D = Object.fromEntries(Object.entries(IC.duotone).map(([k, d]) => [k, svg(d, 24)]));
+  const LINE_MARK = svg(IC.line, 24, 24);
   const DOTS = '<span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>';
 
   // ---------- state and server calls
@@ -142,14 +118,15 @@
     const [label, tone, ic] = STATUS[j.status] || ["", "grey", "clock"];
     const href = j.status === "quoted" || j.status === "rejected" ? `#/quote/${j.id}` : `#/job/${j.id}`;
     const charged = ["done", "refund_review", "running"].includes(j.status);
-    return `<a class="item" href="${href}"><span class="tile ${tone}">${I[ic]}</span>
+    return `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
       <span class="s">${esc(when(j.createdAt))} · ${label}${j.status === "running" ? ` ${DOTS}` : ""}</span></span>
       ${charged ? `<span class="money">${baht(j.price)}</span>` : ""}</a>`;
   };
+  const siteTile = (url) => `<span class="tile">${D.link}${hostOf(url) ? `<img class="logo" src="/logo/${esc(hostOf(url))}.png" alt="" loading="lazy">` : ""}</span>`;
   const sourceRow = (s) =>
     /^https?:\/\//.test(s.url)
-      ? `<a class="source" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer"><span class="tile">${I.link}</span>
+      ? `<a class="source" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${siteTile(s.url)}
         <span class="grow col" style="gap:2px;min-width:0"><span class="t" style="font-size:14px">${esc(s.title || hostOf(s.url))}</span><span class="host">${esc(hostOf(s.url))}</span></span>${I.external}</a>`
       : "";
 
@@ -202,7 +179,7 @@
         <h1>ยินดีต้อนรับสู่ Smith</h1><p class="muted" style="font-size:16px;line-height:1.5">เข้าสู่ระบบเพื่อสั่งงาน<br>แล้วรับผลเข้าแชท LINE ของคุณ</p></div>
       ${failed ? '<p role="alert" class="small" style="color:var(--rtxt);text-align:center">เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง</p>' : ""}
       <div class="grow"></div>
-      <button class="btn line" data-act="line-login">${I.chat}เข้าสู่ระบบด้วย LINE</button>
+      <button class="btn line" data-act="line-login">${LINE_MARK}เข้าสู่ระบบด้วย LINE</button>
       <p class="small muted" style="text-align:center;line-height:1.6">การเข้าสู่ระบบถือว่าคุณยอมรับ <a href="#/terms">เงื่อนไขการใช้งาน</a><br>และ <a href="#/privacy">นโยบายความเป็นส่วนตัว</a></p>`);
   }
 
@@ -212,7 +189,7 @@
     ["ข้อมูลที่เราเก็บ", ["คำสั่งงาน ผลงาน ลิงก์และภาพหน้าจอที่ใช้เป็นหลักฐาน", "ประวัติเครดิต และเหตุผลที่คุณขอเงินคืน", "รหัสบัญชี LINE ของคุณ เมื่อเข้าสู่ระบบด้วย LINE", "รหัสอุปกรณ์แบบสุ่ม ซึ่งเราเก็บเฉพาะค่าที่เข้ารหัสทางเดียวแล้ว"]],
     ["ข้อมูลที่เราไม่เก็บ", ["รหัสผ่าน เลขบัตรประชาชน ข้อมูลบัตรเครดิต หรือรหัส OTP Smith ไม่ต้องใช้ข้อมูลเหล่านี้ อย่าพิมพ์ลงในคำสั่ง"]],
     ["เราใช้ข้อมูลทำอะไร", ["ทำงานตามคำสั่งของคุณ และส่งผลให้คุณ (ฐานสัญญา)", "คิดเครดิตและคืนเครดิต", "ป้องกันการใช้งานผิดวัตถุประสงค์ และปรับปรุงบริการจากสถิติรวม (ฐานประโยชน์โดยชอบด้วยกฎหมาย)"]],
-    ["ใครได้รับข้อมูล", ["ผู้ให้บริการ AI (Anthropic สหรัฐอเมริกา) ประมวลผลคำสั่งและหน้าเว็บที่ Agent อ่าน ภายใต้สัญญาที่ห้ามนำไปฝึก AI", "LINE เมื่อคุณเข้าสู่ระบบหรือรับผลงานทาง LINE", "ผู้ให้บริการเซิร์ฟเวอร์ที่ Smith ใช้", "เราไม่ขายข้อมูลให้ใคร"]],
+    ["ใครได้รับข้อมูล", ["ผู้ให้บริการ AI (Anthropic สหรัฐอเมริกา) ประมวลผลคำสั่งและหน้าเว็บที่ Agent อ่าน ภายใต้สัญญาที่ห้ามนำไปฝึก AI", "LINE เมื่อคุณเข้าสู่ระบบหรือรับผลงานทาง LINE", "บริการโลโก้เว็บไซต์ของ Google ได้รับเฉพาะชื่อเว็บไซต์ที่อยู่ในผลงาน ไม่มีข้อมูลที่ระบุตัวคุณ", "ผู้ให้บริการเซิร์ฟเวอร์ที่ Smith ใช้", "เราไม่ขายข้อมูลให้ใคร"]],
     ["เก็บนานแค่ไหน", ["เก็บจนกว่าคุณจะลบบัญชี ซึ่งทำได้เองทันทีในหน้าตั้งค่า งาน หลักฐาน และประวัติเครดิตจะถูกลบทั้งหมด", "เมื่อจบช่วงทดลอง เราอาจลบข้อมูลทั้งหมดของช่วงทดลอง"]],
     ["สิทธิ์ของคุณ", ["ขอดูหรือขอสำเนาข้อมูล ขอแก้ไข ขอลบ และคัดค้านการใช้ข้อมูล", "ร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (สคส.) ได้"]],
     ["ความปลอดภัย", ["ภาพหลักฐานตั้งชื่อแบบสุ่มที่เดาไม่ได้", "ทีมงานเข้าถึงข้อมูลเฉพาะเท่าที่จำเป็นต่อการดูแลบริการ"]],
@@ -257,7 +234,7 @@
     }
     if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
   }
-  const liveCard = (j) => `<a class="item live-card" href="#/job/${j.id}"><span class="tile">${I.bolt}</span>
+  const liveCard = (j) => `<a class="item live-card" href="#/job/${j.id}"><span class="tile">${D.bolt}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
       <span class="s">${esc(j.progress?.at(-1)?.text || "กำลังเริ่มงาน")} ${DOTS}</span><span class="s">ผ่านไป ${duration(j.startedAt)}</span></span>${I.chev}</a>`;
   function homeParts() {
@@ -350,7 +327,7 @@
     return j.progress.slice(from).map((p, k) => {
       const i = from + k;
       const now = i === j.progress.length - 1;
-      return `<div class="step${i >= seen ? " enter" : ""}"><span class="n ${now ? "now" : "ok"}">${svg(now ? PATHS.bolt : PATHS.check, 16)}</span><span>${esc(p.text)}${now ? ` ${DOTS}` : ""}</span></div>`;
+      return `<div class="step${i >= seen ? " enter" : ""}"><span class="n ${now ? "now" : "ok"}">${svg(now ? IC.bold.bolt : IC.bold.check, 16)}</span><span>${esc(p.text)}${now ? ` ${DOTS}` : ""}</span></div>`;
     }).join("");
   };
   const runningView = (j) => `${topbar(j.title)}
@@ -365,9 +342,11 @@
       <a class="btn second" href="#/">กลับหน้าแรก</a>`;
   const optionCard = (o, i) => {
     const url = /^https?:\/\//.test(o.url) ? o.url : "";
-    const body = `${i ? "" : `<span class="pill good">${svg(PATHS.check, 14)}แนะนำ</span>`}
-      <span class="row" style="align-items:flex-start"><span class="grow name">${esc(o.name)}</span>${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}</span>
-      ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${svg(PATHS.external, 16)}${esc(hostOf(url))}</span>` : ""}`;
+    const body = `${i ? "" : `<span class="pill good">${svg(IC.bold.check, 14)}แนะนำ</span>`}
+      <span class="row" style="align-items:flex-start">${url ? siteTile(url) : `<span class="tile grey">${D.tag}</span>`}
+        <span class="grow col" style="gap:4px;min-width:0"><span class="name">${esc(o.name)}</span>
+          ${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ""}${url ? `<span class="host">${esc(hostOf(url))}${svg(IC.bold.external, 14)}</span>` : ""}</span>
+        ${o.price ? `<span class="price">${esc(o.price)}</span>` : ""}</span>`;
     const cls = `card pad col option${i ? "" : " best"}`;
     return url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${body}</a>` : `<div class="${cls}">${body}</div>`;
   };
@@ -427,7 +406,7 @@
         <a class="btn" href="#/">กลับหน้าแรก</a>`;
     }
     return `${topbar("ขอเงินคืน", `#/job/${j.id}`)}
-      <div class="card pad row"><span class="tile">${I.receipt}</span><span class="col grow" style="gap:2px;min-width:0"><span class="t">${esc(j.title)}</span>
+      <div class="card pad row"><span class="tile">${D.receipt}</span><span class="col grow" style="gap:2px;min-width:0"><span class="t">${esc(j.title)}</span>
         <span class="small muted">จ่ายไป ${baht(j.price)} · เสร็จ${esc(when(j.finishedAt))}</span></span></div>
       <fieldset style="border:0;margin:0;padding:0"><legend class="sect" style="margin-bottom:10px">ผลไม่ตรงตรงไหน</legend>
         <div class="chips">${REASONS.map((x, i) => `<button class="chip" data-act="reason" data-arg="${i}" aria-pressed="${f.reasons.has(i)}">${esc(x)}</button>`).join("")}</div>
@@ -452,7 +431,7 @@
   const ledgerRow = (e) => {
     const plus = e.amount > 0;
     const label = e.kind === "hold" ? e.title || "งาน" : e.title ? `${KIND[e.kind]}: ${e.title}` : KIND[e.kind] || e.kind;
-    return `<div class="item"><span class="tile ${plus ? "good" : ""}">${plus ? I.refund : I.receipt}</span>
+    return `<div class="item"><span class="tile ${plus ? "good" : ""}">${plus ? D.refund : D.receipt}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(label)}</span><span class="s">${esc(when(e.created_at))}</span></span>
       <span class="money ${plus ? "plus" : ""}">${plus ? "+" : "−"}${baht(Math.abs(e.amount))}</span></div>`;
   };
@@ -462,7 +441,7 @@
     render(`${topbar("เครดิต")}
       <div class="wallet-card"><div class="col grow" style="gap:2px"><div style="font-size:15px;font-weight:500">เครดิตคงเหลือ</div>
         <div class="big">${baht(credit)}</div><div class="small" style="font-weight:600">ใช้ได้ราว ${Math.floor(credit / 9)} งาน</div></div><span style="flex:none">${M.small || ""}</span></div>
-      <div class="card pad col"><div class="row"><span class="tile">${I.wallet}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
+      <div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
         <span class="small muted">ช่วงทดลองยังซื้อในแอปไม่ได้ ทีมงานเติมให้</span></span></div>
         <p class="small muted">ส่งรหัสนี้ให้ทีมงานเพื่อขอเติมเครดิต</p>
         <div class="note" style="font-family:monospace;font-size:12px;user-select:all;overflow-wrap:anywhere">${esc(me.data.id)}</div></div>
@@ -473,10 +452,10 @@
   async function settings() {
     const me = (await api("GET", "/api/me")).data;
     const row = (href, ic, label, right = "", tone = "") =>
-      `<a class="item" href="${href}"><span class="tile ${tone}">${I[ic]}</span><span class="grow t" style="font-weight:500">${label}</span>${right}${I.chev}</a>`;
+      `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}</span><span class="grow t" style="font-weight:500">${label}</span>${right}${I.chev}</a>`;
     render(`${topbar("ตั้งค่า")}
       <div class="card list">${row("#/wallet", "wallet", "เครดิต", `<span class="money">${baht(me.credit)}</span>`)}${row("#/history", "list", "งานทั้งหมด")}${row("#/help", "help", "ช่วยเหลือและข้อมูลส่วนตัว")}</div>
-      ${me.login ? `<div class="card list"><button class="item" data-act="logout" style="width:100%;text-align:left"><span class="tile">${I.logout}</span><span class="grow t" style="font-weight:500">ออกจากระบบ</span></button></div>` : ""}
+      ${me.login ? `<div class="card list"><button class="item" data-act="logout" style="width:100%;text-align:left"><span class="tile">${D.logout}</span><span class="grow t" style="font-weight:500">ออกจากระบบ</span></button></div>` : ""}
       <div class="card list">${row("#/delete", "trash", "ลบบัญชีและข้อมูลทั้งหมด", "", "bad")}</div>
       <div class="grow"></div>
       <p class="small muted" style="text-align:center">Smith Agent รุ่นทดลอง · รหัส ${esc(me.id.replace(/^web:/, "").slice(0, 8))}</p>`);
@@ -644,6 +623,8 @@
       route();
     }
   });
+  // A site without a saved logo: drop the broken image so the globe under it shows.
+  app.addEventListener("error", (e) => e.target.classList?.contains("logo") && e.target.remove(), true);
   app.addEventListener("input", (e) => {
     if (e.target.id === "cmd") {
       state.draft = e.target.value;
