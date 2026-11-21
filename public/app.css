@@ -5,7 +5,8 @@
   --mut: #4A5778; --line: #E3E9F6; --soft: #EAF1FF; --field: #EEF3FC;
   --gtxt: #0B7A3E; --gsoft: #D9F5E6; --rtxt: #A81D0C; --rsoft: #FFE9E5;
   --ysoft: #FFF1C4; --ytxt: #7A5200; --psoft: #ECE6FF; --ptxt: #5B3CC4;
-  --press: 80ms; --base: 200ms; --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --press: 80ms; --base: 200ms; --ease-out: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --lift: 0 0 0 1px rgba(11, 27, 77, .04), 0 6px 20px rgba(11, 27, 77, .08); /* cards float on a soft shadow, no outline */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #FFFFFF; color: var(--ink); font-family: "Prompt", sans-serif; -webkit-text-size-adjust: 100%; }
@@ -17,7 +18,7 @@ a, button { -webkit-tap-highlight-color: transparent; } /* the press states belo
 
 #app {
   max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh;
-  display: flex; flex-direction: column; gap: 14px;
+  display: flex; flex-direction: column; gap: 14px; isolation: isolate; /* keeps the clouds behind the screen but in front of the page */
   padding: max(20px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
 }
 h1 { margin: 0; font-family: "Mitr", sans-serif; font-weight: 700; line-height: 1.2; font-size: 28px; }
@@ -48,15 +49,16 @@ p { margin: 0; }
 .btn[aria-busy="true"] { cursor: progress; }
 
 /* press feedback: transform and opacity only */
-.btn, .chip, .icon-btn, .credit-chip, .option { transition: transform var(--press) var(--ease-out); }
-.btn:active:not(:disabled), .chip:active, .icon-btn:active, .credit-chip:active { transform: scale(.97); }
-.option:active { transform: scale(.98); }
+/* down fast, back up with a little bounce */
+.btn, .chip, .icon-btn, .credit-chip, .option, .pill-btn { transition: transform 320ms var(--spring); }
+.btn:active:not(:disabled), .chip:active, .icon-btn:active, .credit-chip:active, .pill-btn:active { transform: scale(.95); transition-duration: var(--press); }
+.option:active { transform: scale(.97); transition-duration: var(--press); }
 a.item, button.item, .source, .link-btn { transition: opacity var(--press); }
 a.item:active, button.item:active, .source:active, .link-btn:active { opacity: .6; }
 .link-btn { color: var(--blue); font-weight: 600; font-size: 14px; min-height: 36px; display: inline-flex; align-items: center; }
 
 /* surfaces */
-.card { background: #FFFFFF; box-shadow: 0 0 0 1px var(--line); border-radius: 24px; }
+.card { background: #FFFFFF; box-shadow: var(--lift); border-radius: 24px; }
 .pad { padding: 14px 16px; }
 .note { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 18px; background: var(--field); font-size: 14px; line-height: 1.5; }
 .note.warn { background: var(--ysoft); color: var(--ytxt); }
@@ -123,7 +125,7 @@ a.item:active, button.item:active, .source:active, .link-btn:active { opacity: .
 .live-card .s { color: #C9D4F2; }
 .live-card .tile { background: var(--blue); color: #FFFFFF; }
 .option { color: inherit; text-decoration: none; gap: 6px; }
-.option.best { box-shadow: 0 0 0 2px var(--blue); }
+.option.best { box-shadow: 0 0 0 2px var(--blue), var(--lift); }
 .option .pill { align-self: flex-start; }
 .option .name { font-size: 16px; font-weight: 600; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
 .option .price { font-family: "Mitr", sans-serif; font-weight: 700; font-size: 20px; line-height: 1.3; overflow-wrap: anywhere; }
@@ -158,12 +160,55 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
 .toast { position: fixed; left: 16px; right: 16px; bottom: max(24px, env(safe-area-inset-bottom)); max-width: 448px; margin: 0 auto; padding: 14px 16px; border-radius: 18px; background: var(--ink); color: #FFFFFF; font-size: 14px; z-index: 10; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* a new screen arrives piece by piece: each block fades up a beat after the one above it */
+#app.in > *, #app.in > .slot > * { animation: arrive 380ms var(--ease-out) both; }
+@keyframes arrive { from { opacity: 0; transform: translateY(14px); } }
+#app.in > :nth-child(2), #app.in > .slot > :nth-child(2) { animation-delay: 50ms; }
+#app.in > :nth-child(3) { animation-delay: 100ms; }
+#app.in > :nth-child(4) { animation-delay: 150ms; }
+#app.in > :nth-child(5) { animation-delay: 200ms; }
+#app.in > :nth-child(6) { animation-delay: 250ms; }
+#app.in > :nth-child(n+7) { animation-delay: 300ms; }
+#app.in > .clouds { animation: fade 600ms both, drift 14s ease-in-out infinite alternate; }
+#app.in .mascot { animation: pop 520ms var(--spring) 80ms both; }
+@keyframes pop { from { opacity: 0; transform: scale(.6); } }
+.toast { animation: toast-in 360ms var(--spring) both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(24px); } }
+
+/* onboarding sits on soft clouds */
+.clouds {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 54vh; max-width: 480px; margin: 0 auto; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(circle 84px at 10% 104px, var(--field) 99%, transparent),
+    radial-gradient(circle 118px at 36% 122px, var(--field) 99%, transparent),
+    radial-gradient(circle 76px at 63% 96px, var(--field) 99%, transparent),
+    radial-gradient(circle 126px at 90% 132px, var(--field) 99%, transparent),
+    linear-gradient(transparent 118px, var(--field) 118px);
+  -webkit-mask-image: linear-gradient(#000 35%, transparent 92%); mask-image: linear-gradient(#000 35%, transparent 92%);
+  animation: drift 14s ease-in-out infinite alternate;
+}
+@keyframes drift { from { transform: translateX(-10px); } to { transform: translateX(10px); } }
+.pill-btn { height: 40px; padding: 0 18px; border-radius: 20px; background: var(--soft); color: var(--blue); font-family: "Mitr", sans-serif; font-weight: 600; font-size: 15px; }
+
+/* a finished job twinkles */
+.mascot { position: relative; }
+.sparks svg { position: absolute; color: var(--yel); animation: twinkle 1.8s ease-in-out infinite; }
+.sparks svg:nth-child(1) { left: calc(50% - 96px); top: 18px; }
+.sparks svg:nth-child(2) { left: calc(50% + 78px); top: 4px; animation-delay: .5s; }
+.sparks svg:nth-child(3) { left: calc(50% + 92px); top: 84px; animation-delay: 1s; }
+@keyframes twinkle { 0%, 100% { opacity: .25; transform: scale(.6) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(20deg); } }
+
+/* price and credit cards sit a touch askew, like a sticker */
+.price-card, .wallet-card { transform: rotate(-1.2deg); box-shadow: 0 10px 24px rgba(255, 194, 26, .28); }
+
 @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 /* reduced motion: no movement, but work still shows as a slow fade */
 @media (prefers-reduced-motion: reduce) {
   .dots span { animation-name: blink; }
-  .btn, .chip, .icon-btn, .credit-chip, .option { transition: none; }
-  .btn:active:not(:disabled), .chip:active, .icon-btn:active, .credit-chip:active, .option:active { transform: none; opacity: .7; }
+  .btn, .chip, .icon-btn, .credit-chip, .option, .pill-btn { transition: none; }
+  .btn:active:not(:disabled), .chip:active, .icon-btn:active, .credit-chip:active, .option:active, .pill-btn:active { transform: none; opacity: .7; }
+  #app.in > *, #app.in > .slot > * { animation-name: fade; animation-delay: 0s; }
+  #app.in .mascot, .toast, .clouds, .sparks svg { animation: none; }
   .enter { animation-name: fade; }
   .bone::after { animation: none; }
   .bone { animation: pulse 2s infinite ease-in-out; }

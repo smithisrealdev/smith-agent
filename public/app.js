@@ -62,6 +62,9 @@
   const I = Object.fromEntries(Object.entries(IC.bold).map(([k, d]) => [k, svg(d)]));
   const D = Object.fromEntries(Object.entries(IC.duotone).map(([k, d]) => [k, svg(d, 24)]));
   const LINE_MARK = svg(IC.line, 24, 24);
+  const CLOUDS = '<div class="clouds" aria-hidden="true"></div>';
+  const SPARK = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z"/></svg>';
+  const SPARKS = `<span class="sparks">${SPARK.repeat(3)}</span>`;
   const DOTS = '<span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>';
 
   // ---------- state and server calls
@@ -149,18 +152,19 @@
   function welcome() {
     const s = SLIDES[Math.min(state.slide, SLIDES.length - 1)];
     const last = state.slide >= SLIDES.length - 1;
-    render(`<div class="slide-dots" aria-hidden="true">${SLIDES.map((_, i) => `<span class="${i === state.slide ? "on" : ""}"></span>`).join("")}</div>
+    render(`${CLOUDS}<div class="row" style="min-height:40px"><span style="width:64px"></span>
+        <div class="slide-dots grow" aria-hidden="true">${SLIDES.map((_, i) => `<span class="${i === state.slide ? "on" : ""}"></span>`).join("")}</div>
+        <span style="width:64px;text-align:right">${last ? "" : '<button class="pill-btn" data-act="skip">ข้าม</button>'}</span></div>
       <div class="grow"></div>
       <div class="center" style="gap:14px"><div class="mascot" style="min-height:150px">${M[s.m] || ""}</div>
         ${s.price ? '<span class="credit-chip" style="font-size:22px;height:48px;padding:0 20px">฿12</span>' : ""}
         <h1 style="font-size:30px">${s.h}</h1><p class="muted" style="font-size:16px;line-height:1.5">${s.p}</p></div>
       <div class="grow"></div>
-      <button class="btn" data-act="next">${last ? "เริ่มเลย" : "ถัดไป"}</button>
-      ${last ? "" : '<button class="btn second" data-act="skip">ข้าม</button>'}`);
+      <button class="btn" data-act="next">${last ? "เริ่มเลย" : "ถัดไป"}</button>`);
   }
 
   function consent() {
-    render(`<div class="center" style="padding-top:12px"><div class="mascot" style="min-height:96px">${M.small || ""}</div>
+    render(`${CLOUDS}<div class="center" style="padding-top:12px"><div class="mascot" style="min-height:96px">${M.small || ""}</div>
         <h1 style="font-size:25px">ก่อนเริ่ม ขออนุญาตหน่อยนะ</h1></div>
       <div class="note" style="background:var(--soft)">${I.info}<span class="col" style="gap:6px"><b>จำเป็นต่อการใช้งาน</b>
         <span>ใช้คำสั่งและผลงานเพื่อทำงานให้คุณ ไม่ขายข้อมูลให้ใคร และลบบัญชีพร้อมข้อมูลทั้งหมดได้เองในหน้าตั้งค่า</span>
@@ -172,7 +176,7 @@
   }
 
   function invite() {
-    render(`<div class="center" style="padding-top:24px"><div class="mascot">${M.small || ""}</div><h1 style="font-size:25px">ใส่รหัสเชิญ</h1>
+    render(`${CLOUDS}<div class="center" style="padding-top:24px"><div class="mascot">${M.small || ""}</div><h1 style="font-size:25px">ใส่รหัสเชิญ</h1>
         <p class="muted">ช่วงทดลอง Smith เปิดให้เฉพาะคนที่ได้รับรหัสจากทีมงาน</p></div>
       <label class="sr" for="invite">รหัสเชิญ</label>
       <input id="invite" class="field" autocomplete="off" autocapitalize="off" placeholder="รหัสเชิญ" value="${esc(saved.get("invite") || "")}">
@@ -184,7 +188,7 @@
   // ---------- sign in (only when the server has LINE Login set up)
   function login() {
     const failed = location.hash.includes("e=1");
-    render(`<div class="grow"></div>
+    render(`${CLOUDS}<div class="grow"></div>
       <div class="center" style="gap:12px"><div class="mascot" style="min-height:140px">${M.idle || ""}</div>
         <h1>ยินดีต้อนรับสู่ Smith</h1><p class="muted" style="font-size:16px;line-height:1.5">เข้าสู่ระบบเพื่อสั่งงาน<br>แล้วรับผลเข้าแชท LINE ของคุณ</p></div>
       ${failed ? '<p role="alert" class="small" style="color:var(--rtxt);text-align:center">เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง</p>' : ""}
@@ -325,6 +329,7 @@
       }
       return poll(() => jobScreen(id), 3000);
     }
+    if (document.getElementById("live")) fresh = true; // the job just finished while the user watched: let the result arrive
     if (job.status === "failed") return render(failedView(job, credit));
     if (job.status === "cancelled") return render(`${topbar(job.title)}<div class="center"><div class="mascot">${M.calm || ""}</div><h1 style="font-size:24px">ยกเลิกงานนี้แล้ว</h1><p class="muted">ไม่คิดเงิน</p></div>`);
     render(doneView(job, credit));
@@ -364,7 +369,7 @@
   function doneView(j, credit) {
     const refundable = j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3;
     return `${topbar(j.title)}
-      <div class="center"><div class="mascot">${M.done || ""}</div><h1 role="status">เสร็จแล้ว!</h1></div>
+      <div class="center"><div class="mascot">${M.done || ""}${SPARKS}</div><h1 role="status">เสร็จแล้ว!</h1></div>
       ${j.status === "refunded" ? `<div class="note good">${I.check}<span>คืนเงิน ${baht(j.price)} เป็นเครดิตแล้ว</span></div>` : ""}
       ${j.status === "refund_review" ? `<div class="note warn">${I.clock}<span>ทีมงานกำลังตรวจคำขอคืนเงิน ภายใน 1 วันทำการ</span></div>` : ""}
       <div class="card pad pre" style="font-size:16px;line-height:1.6">${esc(j.answer)}</div>
@@ -581,6 +586,7 @@
     next() {
       if (state.slide >= SLIDES.length - 1) return go("#/consent");
       state.slide += 1;
+      fresh = true;
       welcome();
     },
     skip: () => go("#/consent"),
@@ -647,8 +653,14 @@
 
   // ---------- routing
   let renders = 0;
+  let fresh = false; // the next render is a new screen, so it animates in; redraws of the same screen do not
+  let settle;
   function render(html) {
     renders++;
+    clearTimeout(settle);
+    app.classList.toggle("in", fresh);
+    if (fresh) settle = setTimeout(() => app.classList.remove("in"), 1200); // later partial redraws (polls) must not replay it
+    fresh = false;
     app.innerHTML = html;
   }
   // Shown only when a screen takes longer than 150ms to load, shaped like the screen that is coming.
@@ -690,7 +702,13 @@
     if (!hit) return go("#/");
     const arg = hit[0].exec(hash)[1];
     const before = renders;
-    const slow = setTimeout(() => renders === before && render(skeleton(hash)), 150);
+    const slow = setTimeout(() => {
+      if (renders !== before) return;
+      fresh = false; // the skeleton just appears; the real screen is what animates in
+      render(skeleton(hash));
+      fresh = true;
+    }, 150);
+    fresh = true;
     try {
       await hit[1](arg && /^\d+$/.test(arg) ? Number(arg) : undefined);
       window.scrollTo(0, 0);
