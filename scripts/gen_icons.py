@@ -9,12 +9,12 @@ NAMES = {  # the app's name -> Phosphor's name
     "plane": "airplane-tilt", "tag": "tag", "doc": "newspaper", "food": "fork-knife", "help": "question",
     "trash": "trash", "list": "list-bullets", "lock": "lock", "logout": "sign-out",
 }
-DUO = {**NAMES, "check": "check-circle", "x": "x-circle", "refund": "arrow-counter-clockwise"}  # fuller shapes read better inside a tile
+FILL = {**NAMES, "check": "check-circle", "x": "x-circle", "refund": "arrow-counter-clockwise"}  # fuller shapes read better inside a tile
 inner = lambda f: re.search(r"<svg[^>]*>(.*)</svg>", f.read_text(), re.S).group(1)
 ph = src / "ph/package/assets"
 data = {
     "bold": {k: inner(ph / "bold" / f"{v}-bold.svg") for k, v in NAMES.items()},
-    "duotone": {k: inner(ph / "duotone" / f"{v}-duotone.svg") for k, v in DUO.items()},
+    "fill": {k: inner(ph / "fill" / f"{v}-fill.svg") for k, v in FILL.items()},
     "line": re.sub(r"<title>.*?</title>", "", inner(src / "si/package/icons/line.svg")),
 }
 lic = (src / "ph/package/LICENSE").read_text().strip()

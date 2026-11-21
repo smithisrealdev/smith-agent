@@ -56,11 +56,11 @@
     return `${Math.floor(s / 60)} นาที${s % 60 ? ` ${s % 60} วินาที` : ""}`;
   };
 
-  // Icons come from icons.js: bold for controls and text, duotone inside tiles. The LINE mark is LINE's own.
-  const IC = window.ICONS || { bold: {}, duotone: {}, line: "" };
+  // Icons come from icons.js: bold for controls and text, filled inside tiles and chips. The LINE mark is LINE's own.
+  const IC = window.ICONS || { bold: {}, fill: {}, line: "" };
   const svg = (d, size = 20, box = 256) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 ${box} ${box}" fill="currentColor">${d || ""}</svg>`;
   const I = Object.fromEntries(Object.entries(IC.bold).map(([k, d]) => [k, svg(d)]));
-  const D = Object.fromEntries(Object.entries(IC.duotone).map(([k, d]) => [k, svg(d, 24)]));
+  const D = Object.fromEntries(Object.entries(IC.fill).map(([k, d]) => [k, svg(d, 22)]));
   const LINE_MARK = svg(IC.line, 24, 24);
   const CLOUDS = '<div class="clouds" aria-hidden="true"></div>';
   const SPARK = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z"/></svg>';
@@ -144,10 +144,23 @@
       : "";
 
   // ---------- onboarding
+  // A prop floats around the slide's mascot: placed by `at`, tilted by `r` degrees, arriving `d` seconds in.
+  const prop = (at, r, d, html) => `<span class="prop" style="${at};--d:${d}s"><span style="--r:${r}deg">${html}</span></span>`;
+  const say = (tone, text) => `<span class="say ${tone}">${text}</span>`;
+  const bars = (n) => '<i class="bar"></i>'.repeat(n);
   const SLIDES = [
-    { m: "idle", h: "บอกสิ่งที่อยากได้<br>แล้วปล่อยให้ Agent<br>ไปทำแทนคุณ", p: "หาตั๋ว เทียบราคา สรุปข่าว หาร้าน พิมพ์มาเหมือนคุยกับเพื่อน" },
-    { m: "small", h: "Agent บอกแผน<br>และราคาก่อนลงมือ", p: "จ่ายไม่เกินราคาที่บอก ไม่สำเร็จ ไม่คิดเงิน", price: true },
-    { m: "done", h: "ทุกงานจบด้วยลิงก์<br>และภาพหน้าจอ<br>ที่เปิดดูเองได้", p: "ผลไม่ตรง ขอเงินคืนได้ใน 24 ชั่วโมง" },
+    {
+      m: "idle", h: "บอกสิ่งที่อยากได้<br>แล้วปล่อยให้ Agent<br>ไปทำแทนคุณ", p: "หาตั๋ว เทียบราคา สรุปข่าว หาร้าน พิมพ์มาเหมือนคุยกับเพื่อน",
+      props: prop("left:0;top:6px", -7, 0.25, say("cor", "หาตั๋วไปเชียงใหม่")) + prop("right:0;top:44px", 6, 0.4, say("yel", "เทียบราคาหูฟัง")) + prop("left:6%;bottom:2px", 4, 0.55, say("grn", "หาร้านอาหาร")),
+    },
+    {
+      m: "work", h: "Agent บอกแผน<br>และราคาก่อนลงมือ", p: "จ่ายไม่เกินราคาที่บอก ไม่สำเร็จ ไม่คิดเงิน",
+      props: prop("right:2%;top:10px", 9, 0.25, '<span class="sticker">฿12</span>') + prop("left:0;top:54px", -6, 0.4, `<span class="mini">${`<span class="row">${svg(IC.fill.check, 16)}<i class="bar"></i></span>`.repeat(3)}</span>`),
+    },
+    {
+      m: "done", h: "ทุกงานจบด้วยลิงก์<br>และภาพหน้าจอ<br>ที่เปิดดูเองได้", p: "ผลไม่ตรง ขอเงินคืนได้ใน 24 ชั่วโมง", sparks: true,
+      props: prop("left:0;top:30px", -8, 0.25, `<span class="mini"><i class="pic"></i>${bars(2)}</span>`) + prop("right:0;top:70px", 7, 0.4, `<span class="say blu">${svg(IC.bold.link, 16)}ลิงก์หลักฐาน</span>`) + prop("right:8%;top:0", -5, 0.55, `<span class="say grn">${svg(IC.fill.check, 16)}คืนเงินได้</span>`),
+    },
   ];
   function welcome() {
     const s = SLIDES[Math.min(state.slide, SLIDES.length - 1)];
@@ -156,8 +169,7 @@
         <div class="slide-dots grow" aria-hidden="true">${SLIDES.map((_, i) => `<span class="${i === state.slide ? "on" : ""}"></span>`).join("")}</div>
         <span style="width:64px;text-align:right">${last ? "" : '<button class="pill-btn" data-act="skip">ข้าม</button>'}</span></div>
       <div class="grow"></div>
-      <div class="center" style="gap:14px"><div class="mascot" style="min-height:150px">${M[s.m] || ""}</div>
-        ${s.price ? '<span class="credit-chip" style="font-size:22px;height:48px;padding:0 20px">฿12</span>' : ""}
+      <div class="center" style="gap:14px"><div class="scene"><div class="mascot" style="min-height:150px">${M[s.m] || ""}${s.sparks ? SPARKS : ""}</div>${s.props}</div>
         <h1 style="font-size:30px">${s.h}</h1><p class="muted" style="font-size:16px;line-height:1.5">${s.p}</p></div>
       <div class="grow"></div>
       <button class="btn" data-act="next">${last ? "เริ่มเลย" : "ถัดไป"}</button>`);
@@ -225,10 +237,10 @@
 
   // ---------- home
   const TEMPLATES = [
-    { label: "หาตั๋วเครื่องบินถูกสุด", icon: "plane", text: "หาตั๋วเครื่องบินไป [เมือง] วันที่ [วัน] กลับวันที่ [วัน] ราคาถูกสุด รวมกระเป๋า" },
-    { label: "เทียบราคาสินค้า", icon: "tag", text: "เทียบราคา [ชื่อสินค้า] จาก 3 ร้าน พร้อมลิงก์" },
-    { label: "สรุปข่าววันนี้", icon: "doc", text: "สรุปข่าวสำคัญวันนี้เรื่อง [หัวข้อ] 5 ข้อ พร้อมแหล่งข่าว" },
-    { label: "หาร้านอาหาร", icon: "food", text: "หาร้านอาหาร [ประเภท] ย่าน [ที่] งบไม่เกิน [บาท] ต่อคน รีวิวดี" },
+    { label: "หาตั๋วเครื่องบินถูกสุด", icon: "plane", tone: "blu", text: "หาตั๋วเครื่องบินไป [เมือง] วันที่ [วัน] กลับวันที่ [วัน] ราคาถูกสุด รวมกระเป๋า" },
+    { label: "เทียบราคาสินค้า", icon: "tag", tone: "cor", text: "เทียบราคา [ชื่อสินค้า] จาก 3 ร้าน พร้อมลิงก์" },
+    { label: "สรุปข่าววันนี้", icon: "doc", tone: "grn", text: "สรุปข่าวสำคัญวันนี้เรื่อง [หัวข้อ] 5 ข้อ พร้อมแหล่งข่าว" },
+    { label: "หาร้านอาหาร", icon: "food", tone: "yel", text: "หาร้านอาหาร [ประเภท] ย่าน [ที่] งบไม่เกิน [บาท] ต่อคน รีวิวดี" },
   ];
   async function home() {
     const [me, list] = await Promise.all([api("GET", "/api/me"), api("GET", "/api/jobs")]);
@@ -273,7 +285,7 @@
         <textarea id="cmd" class="field" rows="3" maxlength="1000" placeholder="เช่น หาตั๋วไปเชียงใหม่ศุกร์นี้ กลับอาทิตย์ ถูกสุด">${esc(state.draft)}</textarea>
         <button class="btn" data-act="send">สั่งงาน Agent</button>
       </div>
-      <div class="hscroll" role="group" aria-label="ตัวอย่างงาน">${TEMPLATES.map((t, i) => `<button class="chip" data-act="template" data-arg="${i}">${I[t.icon]}${esc(t.label)}</button>`).join("")}</div>
+      <div class="hscroll" role="group" aria-label="ตัวอย่างงาน">${TEMPLATES.map((t, i) => `<button class="chip ${t.tone}" data-act="template" data-arg="${i}">${svg(IC.fill[t.icon], 20)}${esc(t.label)}</button>`).join("")}</div>
       ${slot["home-jobs"]}`;
   }
 
@@ -642,6 +654,19 @@
   });
   // A site without a saved logo, or a picture that is gone: drop the broken image (the globe under a logo then shows).
   app.addEventListener("error", (e) => e.target.matches?.(".logo, .shot") && e.target.remove(), true);
+  // Onboarding slides also turn with a swipe.
+  let swipeX = null;
+  app.addEventListener("touchstart", (e) => (swipeX = location.hash === "#/welcome" ? e.touches[0].clientX : null), { passive: true });
+  app.addEventListener("touchend", (e) => {
+    const dx = swipeX === null ? 0 : e.changedTouches[0].clientX - swipeX;
+    swipeX = null;
+    if (dx < -48) actions.next();
+    if (dx > 48 && state.slide > 0) {
+      state.slide -= 1;
+      fresh = true;
+      welcome();
+    }
+  });
   app.addEventListener("input", (e) => {
     if (e.target.id === "cmd") {
       state.draft = e.target.value;
