@@ -497,7 +497,7 @@
     const { credit, entries = [] } = ledger.data;
     render(`${topbar("เครดิต")}
       <div class="wallet-card"><div class="col grow" style="gap:2px"><div style="font-size:15px;font-weight:500">เครดิตคงเหลือ</div>
-        <div class="big">${baht(credit)}</div><div class="small" style="font-weight:600">ใช้ได้ราว ${Math.floor(credit / 9)} งาน</div></div><span style="flex:none">${M.small || ""}</span></div>
+        <div class="big">${baht(credit)}</div><div class="small" style="font-weight:600">ใช้ได้ราว ${Math.floor(credit / (me.data.prices?.M || 9))} งาน</div></div><span style="flex:none">${M.small || ""}</span></div>
       <div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
         <span class="small muted">ช่วงทดลองยังซื้อในแอปไม่ได้ ทีมงานเติมให้</span></span></div>
         <p class="small muted">ส่งรหัสนี้ให้ทีมงานเพื่อขอเติมเครดิต</p>

@@ -175,7 +175,7 @@ test("with LINE Login on, a phone must sign in, and the account follows the LINE
   assert.equal(back.status, 302);
   assert.equal(back.headers.get("location"), "/#/");
   const me = await s.call(A, "GET", "/api/me");
-  assert.deepEqual(me.body, { id: "U77", credit: 20, login: "line" });
+  assert.deepEqual(me.body, { id: "U77", credit: 20, login: "line", prices: { S: 5, M: 9, L: 15 } });
 
   const { body } = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
   await s.call(A, "POST", `/api/jobs/${body.job.id}/start`);

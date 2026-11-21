@@ -91,7 +91,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     const m = /^\/api\/jobs\/(\d+)(?:\/(start|cancel|refund))?$/.exec(path);
     const id = m && Number(m[1]);
 
-    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null });
+    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null, prices: { S: SIZES.S.price, M: SIZES.M.price, L: SIZES.L.price } });
 
     if (req.method === "DELETE" && path === "/api/me") {
       for (const file of store.deleteUser(userId)) await rm(join(evidenceDir, basename(file)), { force: true });
