@@ -16,8 +16,13 @@ services:
         sync: false
       - key: WEB_INVITE_CODE
         sync: false
-      - key: START_CREDIT
-        value: "200" # invite-only test: testers start with enough credit, no one has to add it by hand
+      # The invite code is shared by everyone, so this is what caps the round: new accounts beyond it are turned
+      # away (no account, no Claude call). Your own phones count. Raise it when you invite the next group.
+      - key: MAX_USERS
+        value: "30"
+      # Trial credit: by default three medium jobs (3 x PRICE_M, ฿27 at ฿9), see founder/pricing.md.
+      # - key: START_CREDIT
+      #   value: "27"
       # Optional: lets you download a copy of the database from /admin/backup (see the README). Add it under
       # Environment in the Render dashboard instead of here: a secret does not belong in this file.
       # - key: ADMIN_TOKEN

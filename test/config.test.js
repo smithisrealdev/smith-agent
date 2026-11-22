@@ -14,8 +14,9 @@ const load = (env) => {
   }
 };
 
-test("prices and the starting credit default to 5 / 9 / 15 and 20, and can be set in whole baht", () => {
-  assert.deepEqual(load({}), { ok: true, prices: [5, 9, 15], credit: 20, cap: 500, admin: false });
+test("prices default to 5 / 9 / 15, the starting credit to three medium jobs, and both can be set in whole baht", () => {
+  assert.deepEqual(load({}), { ok: true, prices: [5, 9, 15], credit: 27, cap: 500, admin: false });
+  assert.equal(load({ PRICE_M: "12" }).credit, 36, "the trial credit follows the medium price");
   assert.deepEqual(load({ PRICE_M: "12", PRICE_L: "20", START_CREDIT: "36", DAILY_COST_CAP: "300" }), { ok: true, prices: [5, 12, 20], credit: 36, cap: 300, admin: false });
   assert.equal(load({ DAILY_COST_CAP: "0" }).cap, 0, "0 turns the daily cap off");
   assert.equal(load({ START_CREDIT: "0" }).credit, 0, "a starting credit of zero is allowed");

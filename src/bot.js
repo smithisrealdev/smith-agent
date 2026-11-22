@@ -22,6 +22,7 @@ const welcome = (credit) =>
   ].join("\n");
 
 const FULL = "วันนี้ Smith รับงานเต็มแล้วครับ ลองใหม่พรุ่งนี้ ไม่คิดเงิน และเครดิตของคุณไม่ถูกหัก";
+const CLOSED = "ขอบคุณที่สนใจครับ รอบทดลองของ Smith รับผู้ทดลองครบแล้ว ทีมงานจะแจ้งเมื่อเปิดรอบถัดไป";
 
 // A finished job as the runner reported it, rebuilt from what was stored: for sending it again.
 const resultOf = (j) => ({
@@ -30,7 +31,7 @@ const resultOf = (j) => ({
   coverage: j.coverage ? JSON.parse(j.coverage) : null,
 });
 
-export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, log = console }) {
+export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, maxUsers = 0, log = console }) {
   const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
   async function onText(userId, replyToken, msg) {
     const user = store.user(userId);
@@ -145,6 +146,9 @@ export function createBot({ store, line, quote, runner, publicUrl = "", dailyCos
     const userId = e.source?.type === "user" ? e.source.userId : null;
     if (!userId) return;
     try {
+      if (maxUsers > 0 && !store.known(userId) && store.userCount() >= maxUsers) {
+        return e.replyToken && await line.reply(e.replyToken, [text(CLOSED)]); // the test round is full: no account, no paid quote
+      }
       if (e.type === "message" && e.message?.type === "text") return await onText(userId, e.replyToken, e.message.text);
       if (e.type === "message") return await line.reply(e.replyToken, [text("ตอนนี้ Smith อ่านได้เฉพาะข้อความ พิมพ์งานที่อยากให้ทำมาได้เลยครับ")]);
       if (e.type === "postback") return await onPostback(userId, e.replyToken, e.postback?.data || "");

@@ -40,7 +40,7 @@ export function jobView(j) {
 
 // The phone app's API. A phone keeps a random token and the server stores only its hash (the "key").
 // Without LINE Login the key is the account; with it, the key must be signed in to a LINE user first.
-export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, now = () => new Date(), log = console }) {
+export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, maxUsers = 0, now = () => new Date(), log = console }) {
   const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
   const json = (res, status, body) => {
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -71,6 +71,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     }
   };
   const credit = (userId) => store.user(userId).credit;
+  const closed = (userId) => maxUsers > 0 && !store.known(userId) && store.userCount() >= maxUsers; // the test round is full
   const view = (j) => ({ ...jobView(j), progress: j.status === "running" ? runner.progress(j.id) : [] });
   const ownJob = (userId, id) => {
     const j = store.job(id);
@@ -145,6 +146,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     try {
       if (q.get("error")) throw new Error(`LINE said ${q.get("error")}`);
       const { key, userId } = await lineLogin.finish(q.get("state") || "", q.get("code") || "");
+      if (closed(userId)) return redirect(res, "/#/full");
       store.user(userId);
       store.signIn(key, userId);
       return redirect(res, "/#/");
@@ -181,6 +183,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     }
     const userId = lineLogin ? store.sessionUser(key) : `web:${key}`;
     if (!userId) return json(res, 401, { error: "login" });
+    if (closed(userId)) return json(res, 403, { error: "full" });
     try {
       return await api(req, res, path, userId);
     } catch (err) {

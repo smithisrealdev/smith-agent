@@ -74,6 +74,7 @@
 
   class InviteNeeded extends Error {}
   class LoginNeeded extends Error {}
+  class RoundFull extends Error {} // the server takes no new accounts in this test round
   class Stale extends Error {} // the user moved to another screen while this loaded
   async function api(method, path, body) {
     const at = gen;
@@ -91,6 +92,7 @@
     if (method === "GET" && gen !== at) throw new Stale(); // a late load must not paint over the newer screen
     if (res.status === 403 && data.error === "invite") throw new InviteNeeded();
     if (res.status === 401 && data.error === "login") throw new LoginNeeded();
+    if (res.status === 403 && data.error === "full") throw new RoundFull();
     return { ok: res.ok, status: res.status, data };
   }
 
@@ -158,7 +160,7 @@
       props: prop("right:2%;top:10px", 9, 0.25, '<span class="sticker">฿12</span>') + prop("left:0;top:54px", -6, 0.4, `<span class="mini">${`<span class="row">${svg(IC.fill.check, 16)}<i class="bar"></i></span>`.repeat(3)}</span>`),
     },
     {
-      m: "done", h: "ทุกงานจบด้วยลิงก์<br>และภาพหน้าจอ<br>ที่เปิดดูเองได้", p: "ผลไม่ตรง ขอเงินคืนได้ใน 24 ชั่วโมง", sparks: true,
+      m: "done", h: "ผลงานมีลิงก์จริง<br>ให้เปิดตรวจเองได้", p: "มีภาพหน้าจอเมื่อเปิดหน้าเว็บได้ ผลไม่ตรง ขอเงินคืนได้ใน 24 ชั่วโมง", sparks: true,
       props: prop("left:0;top:30px", -8, 0.25, `<span class="mini"><i class="pic"></i>${bars(2)}</span>`) + prop("right:0;top:70px", 7, 0.4, `<span class="say blu">${svg(IC.bold.link, 16)}ลิงก์หลักฐาน</span>`) + prop("right:8%;top:0", -5, 0.55, `<span class="say grn">${svg(IC.fill.check, 16)}คืนเงินได้</span>`),
     },
   ];
@@ -195,6 +197,11 @@
       ${saved.get("invite") ? '<p role="alert" class="small" style="color:var(--rtxt);padding:0 4px">รหัสนี้ใช้ไม่ได้ ลองเช็กกับทีมงานอีกครั้ง</p>' : ""}
       <div class="grow"></div>
       <button class="btn" data-act="invite">ไปต่อ</button>`);
+  }
+
+  function roundFull() {
+    render(`${CLOUDS}<div class="center" style="padding-top:24px"><div class="mascot">${M.small || ""}</div><h1 style="font-size:25px">รอบทดลองเต็มแล้ว</h1>
+        <p class="muted">ขอบคุณที่สนใจครับ ตอนนี้ Smith รับผู้ทดลองครบแล้ว ทีมงานจะแจ้งเมื่อเปิดรอบถัดไป</p></div>`);
   }
 
   // ---------- sign in (only when the server has LINE Login set up)
@@ -391,6 +398,16 @@
       ${chips ? `<span class="chipsrow">${chips}</span>` : ""}
       ${c.blocked?.length ? `<div class="note warn">${I.info}<span>อ่านไม่ได้: ${c.blocked.map(esc).join(", ")} ราคาจากเว็บนี้อาจไม่อยู่ในผล</span></div>` : ""}</div>`;
   };
+  // The result as plain text for a friend or a LINE group (offer item F): names, prices and shop links only. The
+  // screenshot stays private, and the line about when it was checked travels with the prices.
+  const shareText = (j) => [
+    `Smith เช็กให้: ${j.title}`,
+    ...(j.options?.length
+      ? j.options.map((o, i) => [`${i + 1}. ${o.name}${o.price ? ` · ${o.price}` : ""}`, /^https?:\/\//.test(o.url) ? o.url : ""].filter(Boolean).join("\n"))
+      : [String(j.answer || "").slice(0, 400)]),
+    ...(j.codes?.length ? [`โค้ดที่เจอบนหน้าเว็บ (อาจหมดอายุ): ${j.codes.map((c) => c.code).join(", ")}`] : []),
+    `เช็กเมื่อ ${new Date(j.finishedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })} ${clock(new Date(j.finishedAt))} ราคาอาจเปลี่ยน ตรวจที่ลิงก์ก่อนซื้อ`, // read later, so a date, not "a minute ago"
+  ].join("\n");
   function doneView(j, credit) {
     const refundable = j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3;
     // The phone reads the result aloud (its own Thai voice): for hands-busy moments and for people who find reading hard.
@@ -412,6 +429,7 @@
         <div class="item"><span class="grow muted">เช็กข้อมูลเมื่อ</span><span>${esc(when(j.finishedAt))}</span></div>
         <div class="item"><span class="grow muted">เครดิตคงเหลือ</span><span>${baht(credit)}</span></div></div>
       <button class="btn" data-act="followup">สั่งต่อจากผลงานนี้</button>
+      <button class="btn second" data-act="share">${LINE_MARK}ส่งให้เพื่อนดู</button>
       <button class="btn second" data-act="retry">ทำงานนี้อีกครั้ง</button>
       ${refundable ? `<a class="btn text-danger" href="#/refund/${j.id}">ผลไม่ตรง ขอเงินคืน</a>` : ""}`;
   }
@@ -743,6 +761,18 @@
       say.onend = say.onerror = () => show(false);
       synth.speak(say);
     },
+    async share() {
+      if (!state.job) return;
+      const text = shareText(state.job);
+      if (navigator.share) {
+        try {
+          return await navigator.share({ text }); // the phone's own share sheet, LINE included
+        } catch (err) {
+          if (err.name === "AbortError") return; // closed the sheet
+        }
+      }
+      window.open(`https://line.me/R/share?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    },
     async copy(i) {
       const code = state.job?.codes?.[i]?.code;
       if (!code) return;
@@ -767,6 +797,7 @@
     } catch (err) {
       if (err instanceof InviteNeeded) return go("#/invite");
       if (err instanceof LoginNeeded) return go("#/login");
+      if (err instanceof RoundFull) return go("#/full");
       toast(err.message === "offline" ? "เชื่อมต่อไม่ได้ เช็กอินเทอร์เน็ตแล้วลองใหม่" : "ระบบขัดข้อง ลองใหม่อีกครั้ง");
       route();
     }
@@ -848,6 +879,7 @@
     [/^#\/welcome$/, welcome],
     [/^#\/consent$/, consent],
     [/^#\/invite$/, invite],
+    [/^#\/full$/, roundFull],
     [/^#\/login(\?e=1)?$/, login],
     [/^#\/privacy$/, privacy],
     [/^#\/terms$/, terms],
@@ -866,7 +898,7 @@
     window.speechSynthesis?.cancel(); // leaving a screen stops it being read aloud
     clearTimeout(poller);
     const hash = location.hash;
-    if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite|privacy|terms|login)/.test(hash)) return go("#/welcome");
+    if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite|privacy|terms|login|full)/.test(hash)) return go("#/welcome");
     const hit = ROUTES.find(([re]) => re.test(hash));
     if (!hit) return go("#/");
     const arg = hit[0].exec(hash)[1];
@@ -885,6 +917,7 @@
       if (err instanceof Stale) return;
       if (err instanceof InviteNeeded) return go("#/invite");
       if (err instanceof LoginNeeded) return go("#/login");
+      if (err instanceof RoundFull) return go("#/full");
       render(errorView(err));
     } finally {
       clearTimeout(slow);

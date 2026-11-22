@@ -338,3 +338,14 @@ test("when today's Claude budget is used up, a quote and a start answer 503 and 
   assert.equal(startJob.body.credit, 20, "nothing was charged");
   assert.equal(s.store.job(first.body.job.id).status, "quoted");
 });
+
+test("when the test round is full, a new device is turned away before an account is made", async (t) => {
+  const s = await start({ maxUsers: 1 });
+  t.after(s.close);
+  assert.equal((await s.call(A, "GET", "/api/me")).status, 200);
+  const turned = await s.call(B, "GET", "/api/me");
+  assert.equal(turned.status, 403);
+  assert.equal(turned.body.error, "full");
+  assert.equal(s.store.userCount(), 1);
+  assert.equal((await s.call(A, "POST", "/api/quote", { text: "หาหูฟัง" })).status, 200, "people already in carry on");
+});

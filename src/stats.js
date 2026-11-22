@@ -1,4 +1,4 @@
-import { STORE_NET_RATE } from "./config.js";
+import { STORE_NET_RATE, SIZES } from "./config.js";
 
 // The experiment's numbers: does Smith finish jobs, and does the price cover what Claude costs?
 export function stats(db) {
@@ -20,6 +20,12 @@ export function stats(db) {
     return [...n].sort((a, b) => b[1] - a[1]).slice(0, 5);
   };
   const priceClaims = jobs.filter((j) => j.refund_tag === "price" && ["refunded", "refund_review"].includes(j.status)).length;
+  // The weekly numbers in founder/marketing.md: did invitees start, run out of the trial credit, and pay to go on?
+  const accounts = db.prepare("SELECT * FROM users").all();
+  const firstStart = new Map();
+  for (const j of started) if (!firstStart.has(j.user_id) || j.started_at < firstStart.get(j.user_id)) firstStart.set(j.user_id, j.started_at);
+  const activated3d = accounts.filter((u) => firstStart.has(u.id) && Date.parse(firstStart.get(u.id)) - Date.parse(u.created_at) <= 3 * 86400e3).length;
+  const toppedUp = db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM ledger WHERE kind = 'grant'").get().n;
   const seconds = finished.map((j) => (Date.parse(j.finished_at) - Date.parse(j.started_at)) / 1000).sort((a, b) => a - b);
   return {
     quotes: jobs.length,
@@ -45,6 +51,10 @@ export function stats(db) {
     avgPricePaid: charged.length ? revenue / charged.length : 0,
     users: perUser.size,
     repeatUsers: [...perUser.values()].filter((n) => n >= 2).length,
+    accounts: accounts.length,
+    activated3d,
+    outOfCredit: accounts.filter((u) => u.credit < SIZES.S.price).length,
+    toppedUp,
     medianSeconds: seconds.length ? seconds[Math.floor(seconds.length / 2)] : 0,
   };
 }
@@ -72,6 +82,7 @@ export function formatStats(s) {
     `รายได้ ${thb(s.revenue)} · ต้นทุน Claude ${thb(s.cost)} · ต้นทุนต่องานที่เริ่ม ${thb(s.costPerStartedJob)} · ราคาเฉลี่ย ${thb(s.avgPricePaid)}`,
     `กำไรขั้นต้น ${thb(s.margin)} · หลังหัก VAT และค่าธรรมเนียมสโตร์ 15% ${thb(s.marginAfterStoreFee)}`,
     `ผู้ใช้ ${s.users} · กลับมาใช้ซ้ำ ${s.repeatUsers}`,
+    `บัญชี ${s.accounts} · เริ่มงานแรกภายใน 3 วัน ${s.activated3d} · เครดิตหมด ${s.outOfCredit} · ทีมงานเติมเครดิตให้ ${s.toppedUp} คน`,
   ].join("\n");
 }
 

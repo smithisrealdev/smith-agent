@@ -11,7 +11,7 @@ const RESULT = {
   usage: { cost: 4.2, input_tokens: 9000, output_tokens: 800, searches: 3 },
 };
 
-function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, refuse = () => false } = {}) {
+function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, maxUsers, refuse = () => false } = {}) {
   let t = clock ?? Date.parse("2026-11-20T03:00:00Z");
   const store = makeStore(openDb(":memory:"), { startCredit: 20, now: () => new Date(t) });
   const sent = [];
@@ -23,7 +23,7 @@ function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, cloc
     },
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
-  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, log: { error() {} } });
+  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, maxUsers, log: { error() {} } });
   return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
@@ -300,4 +300,19 @@ test("'ผลล่าสุด' says so when the last job is still running, whe
   store.start("U1", second.id);
   await bot.handle(say("U1", "ผลล่าสุด"));
   assert.match(lastText(sent), /งานล่าสุดยังทำอยู่/);
+});
+
+test("when the test round is full, a new LINE user gets no account and no paid quote; existing users carry on", async () => {
+  let quoted = 0;
+  const { store, bot, sent } = setup({ maxUsers: 1, quote: async () => (quoted++, QUOTE_M) });
+  await bot.handle(say("U1", "หาตั๋ว"));
+  assert.equal(quoted, 1);
+  await bot.handle(say("U2", "หาตั๋ว"));
+  assert.equal(quoted, 1, "no Claude call for someone outside the round");
+  assert.equal(store.known("U2"), false);
+  assert.match(lastText(sent), /รับผู้ทดลองครบแล้ว/);
+  await bot.handle({ type: "follow", replyToken: "r", source: { type: "user", userId: "U3" } });
+  assert.equal(store.known("U3"), false);
+  await bot.handle(say("U1", "หาตั๋วอีก"));
+  assert.equal(quoted, 2);
 });

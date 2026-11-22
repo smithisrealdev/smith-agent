@@ -27,12 +27,12 @@ export const config = {
   lineLoginId: env.LINE_LOGIN_CHANNEL_ID || "", // with its secret and PUBLIC_URL, the web app requires signing in with LINE
   lineLoginSecret: env.LINE_LOGIN_CHANNEL_SECRET || "",
   model: env.SMITH_MODEL || "claude-opus-5-5",
-  startCredit: whole("START_CREDIT", 20, 0), // "first job free, up to ฿20" from the design
   usdThb: Number(env.USD_THB || 36),
   inviteCode: env.WEB_INVITE_CODE || "", // set it before the web app is reachable from the internet
   quotesPerHour: Number(env.QUOTES_PER_HOUR || 30), // per user; every quote is a paid Claude call
   adminToken: adminToken(env.ADMIN_TOKEN), // turns on GET /admin/backup; leave empty to keep that route off
   dailyCostCap: whole("DAILY_COST_CAP", 500, 0), // baht of Claude cost per Thai day, all users together; 0 turns the cap off
+  maxUsers: whole("MAX_USERS", 0, 0), // accounts allowed in the test round (the invite code is shared, so it caps nothing); 0 = no limit
 };
 
 // The price the user sees before a job starts, and the work budget that price buys.
@@ -46,6 +46,8 @@ export const SIZES = {
 if (!(SIZES.S.price <= SIZES.M.price && SIZES.M.price <= SIZES.L.price)) {
   throw new Error(`PRICE_S, PRICE_M and PRICE_L must not go down with size, got ${SIZES.S.price} / ${SIZES.M.price} / ${SIZES.L.price}`);
 }
+// Trial credit: three medium jobs by default (founder/pricing.md), so it follows the price when PRICE_M changes.
+config.startCredit = whole("START_CREDIT", 3 * SIZES.M.price, 0);
 
 // Auto-refund rules from the design: within 24 hours of the result, 3 times a month; the rest go to manual review.
 // "The price is not what the page shows" is Smith's own mistake, so it has its own, larger allowance.

@@ -106,3 +106,22 @@ test("the review queue puts wrong-price claims first, then the rest in order", (
   assert.match(formatQueue(db), /อนุมัติ: node src\/cli\.js refund \d+/);
   assert.equal(formatQueue(openDb(":memory:")), "ไม่มีคำขอรอตรวจ");
 });
+
+test("stats count who started within 3 days, who ran out of credit, and who was topped up", () => {
+  let t = Date.parse("2026-11-20T03:00:00Z");
+  const db = openDb(":memory:");
+  const store = makeStore(db, { startCredit: 9, now: () => new Date(t) });
+  const q = { doable: true, reason: "", title: "t", steps: [], size: "M", cost: 0 };
+  store.user("fast"); store.user("slow"); store.user("idle");
+  t += 3600e3;
+  store.start("fast", store.addQuote("fast", "x", q).id); // spends the whole ฿9 trial credit
+  t += 5 * 86400e3;
+  store.start("slow", store.addQuote("slow", "x", q).id);
+  store.grant("slow", 50);
+  const s = stats(db);
+  assert.equal(s.accounts, 3);
+  assert.equal(s.activated3d, 1);
+  assert.equal(s.outOfCredit, 1);
+  assert.equal(s.toppedUp, 1);
+  assert.match(formatStats(s), /บัญชี 3 · เริ่มงานแรกภายใน 3 วัน 1 · เครดิตหมด 1 · ทีมงานเติมเครดิตให้ 1 คน/);
+});

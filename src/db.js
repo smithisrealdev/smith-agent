@@ -69,6 +69,8 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
 
   return {
     job,
+    known: (id) => Boolean(one("SELECT 1 FROM users WHERE id = ?", id)),
+    userCount: () => one("SELECT COUNT(*) AS n FROM users").n,
     user(id) {
       if (!one("SELECT id FROM users WHERE id = ?", id)) {
         tx(() => {
