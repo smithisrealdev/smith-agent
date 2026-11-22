@@ -11,7 +11,7 @@ const RESULT = {
   usage: { cost: 4.2, input_tokens: 9000, output_tokens: 800, searches: 3 },
 };
 
-function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, maxUsers, refuse = () => false } = {}) {
+function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, maxUsers, topup, refuse = () => false } = {}) {
   let t = clock ?? Date.parse("2026-11-20T03:00:00Z");
   const store = makeStore(openDb(":memory:"), { startCredit: 20, now: () => new Date(t) });
   const sent = [];
@@ -23,7 +23,7 @@ function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, cloc
     },
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
-  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, maxUsers, log: { error() {} } });
+  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, maxUsers, topup, log: { error() {} } });
   return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
@@ -315,4 +315,29 @@ test("when the test round is full, a new LINE user gets no account and no paid q
   assert.equal(store.known("U3"), false);
   await bot.handle(say("U1", "หาตั๋วอีก"));
   assert.equal(quoted, 2);
+});
+
+test("out of credit in LINE: the reply says where to pay; \"โอนแล้ว\" files one request for staff to check", async () => {
+  const { store, bot, sent } = setup({ topup: { promptpay: "0812345678", name: "สมชาย", amount: 50 } });
+  store.user("U1");
+  store.grant("U1", -20); // spend the trial credit
+  await bot.handle(say("U1", "หาตั๋ว"));
+  const id = store.jobsOf("U1")[0].id;
+  await bot.handle(tap("U1", `start:${id}`));
+  assert.match(lastText(sent), /เครดิตไม่พอ[\s\S]*PromptPay 0812345678 \(สมชาย\)[\s\S]*พิมพ์ "โอนแล้ว"/);
+  await bot.handle(say("U1", "โอนแล้ว"));
+  await bot.handle(say("U1", "โอนแล้ว"));
+  assert.match(lastText(sent), /รับแจ้งแล้ว/);
+  assert.equal(store.pendingTopups().length, 1, "asking twice still makes one request");
+  assert.equal(store.user("U1").credit, 0);
+});
+
+test("without a PromptPay number, \"โอนแล้ว\" is an ordinary task and the old top-up wording stays", async () => {
+  let quoted = 0;
+  const { store, bot, sent } = setup({ quote: async () => (quoted++, QUOTE_M) });
+  await bot.handle(say("U1", "โอนแล้ว"));
+  assert.equal(quoted, 1);
+  assert.equal(store.pendingTopups().length, 0);
+  await bot.handle(say("U1", "เครดิต"));
+  assert.match(lastText(sent), /รหัสผู้ใช้/);
 });

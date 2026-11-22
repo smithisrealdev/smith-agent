@@ -175,7 +175,7 @@ test("with LINE Login on, a phone must sign in, and the account follows the LINE
   assert.equal(back.status, 302);
   assert.equal(back.headers.get("location"), "/#/");
   const me = await s.call(A, "GET", "/api/me");
-  assert.deepEqual(me.body, { id: "U77", credit: 20, login: "line", prices: { S: 5, M: 9, L: 15 } });
+  assert.deepEqual(me.body, { id: "U77", credit: 20, login: "line", prices: { S: 5, M: 9, L: 15 }, topup: null });
 
   const { body } = await s.call(A, "POST", "/api/quote", { text: "หาของ" });
   await s.call(A, "POST", `/api/jobs/${body.job.id}/start`);
@@ -348,4 +348,20 @@ test("when the test round is full, a new device is turned away before an account
   assert.equal(turned.body.error, "full");
   assert.equal(s.store.userCount(), 1);
   assert.equal((await s.call(A, "POST", "/api/quote", { text: "หาหูฟัง" })).status, 200, "people already in carry on");
+});
+
+test("PromptPay top-up: off unless set; the app shows where to pay; one request waits at a time; the amount is the server's", async (t) => {
+  const off = await start();
+  t.after(off.close);
+  assert.equal((await off.call(A, "POST", "/api/topup", {})).status, 404);
+  const s = await start({ topup: { promptpay: "0812345678", name: "สมชาย ใจดี", amount: 50 } });
+  t.after(s.close);
+  assert.deepEqual((await s.call(A, "GET", "/api/me")).body.topup, { promptpay: "0812345678", name: "สมชาย ใจดี", amount: 50 });
+  const first = await s.call(A, "POST", "/api/topup", { amount: 5000 });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.topup.amount, 50, "what the client sends is ignored");
+  assert.equal(first.body.topup.status, "pending");
+  assert.equal(first.body.credit, 20, "nothing is credited until staff approve");
+  assert.equal((await s.call(A, "POST", "/api/topup", {})).body.topup.id, first.body.topup.id, "tapping again returns the waiting request");
+  assert.equal((await s.call(A, "GET", "/api/ledger")).body.topups[0].status, "pending");
 });

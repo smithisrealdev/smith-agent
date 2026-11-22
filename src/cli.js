@@ -7,12 +7,15 @@
 //   node src/cli.js trial ["task" ...]       run real tasks once (8 built in, 12 at most): cost per job, success, sites it cannot read
 //   node src/cli.js queue                     refunds waiting for review, wrong-price claims first
 //   node src/cli.js refund <jobId>            approve a refund waiting for review
+//   node src/cli.js topups                    PromptPay top-ups waiting: check each in your bank app first
+//   node src/cli.js topup <id> [no]           credit a top-up you found in the bank (or "no": not received)
 import { config } from "./config.js";
 import { openDb, makeStore } from "./db.js";
 import { stats, formatStats, formatJobs, formatQueue } from "./stats.js";
 import { backupDb, restoreDb } from "./backup.js";
 import { quote, runTask } from "./agent.js";
 import { TASKS, MAX_TASKS, runOne, formatRow, summarize, formatSummary } from "./trial.js";
+import { lineClient, text, postback } from "./line.js";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -53,7 +56,28 @@ if (cmd === "stats") {
   console.log(formatQueue(db));
 } else if (cmd === "refund" && Number(a)) {
   console.log(store.forceRefund(Number(a)) ? `refunded job ${a}` : `job ${a} is not refundable`);
+} else if (cmd === "topups") {
+  const rows = store.pendingTopups();
+  console.log(rows.map((t) => `#${t.id} ฿${t.amount} · แจ้งเมื่อ ${new Date(t.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "short", timeStyle: "short" })} · ${t.user_id}`).join("\n")
+    || "ไม่มีคำขอเติมเครดิตที่รอตรวจ");
+  if (rows.length) console.log(`\nเช็กยอดเข้าในแอปธนาคารก่อน แล้วรัน: node src/cli.js topup <id>  (ไม่พบยอด: node src/cli.js topup <id> no)`);
+} else if (cmd === "topup" && Number(a)) {
+  const t = store.decideTopup(Number(a), b !== "no");
+  if (!t) {
+    console.log(`top-up ${a} is not waiting (already decided, or no such id)`);
+    process.exitCode = 1;
+  } else {
+    console.log(t.status === "approved" ? `credited ฿${t.amount} to ${t.user_id}: balance ฿${t.credit}` : `turned down top-up ${a}`);
+    // Tell a LINE user in their chat; offer to start the job that was waiting for credit. One push from the monthly quota.
+    if (!t.user_id.startsWith("web:") && config.lineToken) {
+      const waiting = store.jobsOf(t.user_id, 10).find((j) => j.status === "quoted" && j.price <= t.credit);
+      const msg = t.status === "approved"
+        ? text(`เติมเครดิต ฿${t.amount} แล้ว เครดิตคงเหลือ ฿${t.credit}${waiting ? `\nงานที่รอไว้: ${waiting.title}` : ""}`, waiting ? [postback(`เริ่มงาน ฿${waiting.price}`, `start:${waiting.id}`)] : [])
+        : text(`ยังไม่พบยอดโอน ฿${t.amount} ในบัญชี ทีมงานจึงยังไม่เติมเครดิต ถ้าโอนแล้วจริง ทักมาในแชทนี้พร้อมสลิปได้เลยครับ`);
+      await lineClient(config.lineToken).push(t.user_id, [msg]).then(() => console.log("told the user in LINE"), (err) => console.log(`LINE message failed: ${err.message}`));
+    }
+  }
 } else {
-  console.log("usage: node src/cli.js stats | jobs [n] | queue | trial [task ...] | backup | restore <file> yes | grant <userId> <baht> | refund <jobId>");
+  console.log("usage: node src/cli.js stats | jobs [n] | queue | trial [task ...] | backup | restore <file> yes | grant <userId> <baht> | refund <jobId> | topups | topup <id> [no]");
   process.exitCode = 1;
 }

@@ -33,3 +33,22 @@ test("what was spent today counts from midnight in Thailand, not from midnight U
   store.finish(job.id, { ok: true, answer: "a", usage: { cost: 4 } });
   assert.equal(store.spentToday(), 7, "the quote and the run both count");
 });
+
+test("a top-up is credited only when staff approve it, once; a turned-down one adds nothing; deleting the account removes it", () => {
+  const store = makeStore(openDb(":memory:"), { startCredit: 9 });
+  const t = store.requestTopup("U1", 50);
+  assert.equal(store.user("U1").credit, 9);
+  assert.equal(store.pendingTopups().length, 1);
+  const ok = store.decideTopup(t.id, true);
+  assert.equal(ok.status, "approved");
+  assert.equal(ok.credit, 59);
+  assert.equal(store.decideTopup(t.id, true), null, "approving twice does not pay twice");
+  assert.equal(store.user("U1").credit, 59);
+  assert.equal(store.ledgerOf("U1")[0].kind, "topup");
+  const no = store.requestTopup("U1", 50);
+  assert.notEqual(no.id, t.id, "a decided request does not block a new one");
+  assert.equal(store.decideTopup(no.id, false).status, "rejected");
+  assert.equal(store.user("U1").credit, 59);
+  store.deleteUser("U1");
+  assert.equal(store.topupsOf("U1").length, 0);
+});

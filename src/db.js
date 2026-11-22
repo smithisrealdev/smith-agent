@@ -30,8 +30,15 @@ export function openDb(path) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL, job_id INTEGER,
       amount INTEGER NOT NULL, -- credit in baht, + adds to the user's balance
-      kind TEXT NOT NULL,      -- start | grant | hold | release | refund
+      kind TEXT NOT NULL,      -- start | grant | topup | hold | release | refund
       created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS topups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      amount INTEGER NOT NULL, -- baht the user says they transferred (the configured amount, never what the client sends)
+      status TEXT NOT NULL,    -- pending | approved | rejected
+      created_at TEXT NOT NULL, decided_at TEXT
     );
     CREATE TABLE IF NOT EXISTS sessions (
       key TEXT PRIMARY KEY,     -- hash of the phone's random token
@@ -166,6 +173,29 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
       });
     },
 
+    // A user says they paid by PromptPay. One request waits at a time: tapping again returns the waiting one.
+    requestTopup(userId, amount) {
+      this.user(userId);
+      return tx(() => {
+        const waiting = one("SELECT * FROM topups WHERE user_id = ? AND status = 'pending'", userId);
+        if (waiting) return waiting;
+        const { lastInsertRowid } = run("INSERT INTO topups (user_id, amount, status, created_at) VALUES (?, ?, 'pending', ?)", userId, amount, iso());
+        return one("SELECT * FROM topups WHERE id = ?", Number(lastInsertRowid));
+      });
+    },
+    // Staff checked the bank app: credit the money (approve) or turn the claim down. Only a waiting request changes.
+    decideTopup(id, approve) {
+      return tx(() => {
+        const t = one("SELECT * FROM topups WHERE id = ? AND status = 'pending'", id);
+        if (!t) return null;
+        run("UPDATE topups SET status = ?, decided_at = ? WHERE id = ?", approve ? "approved" : "rejected", iso(), id);
+        if (approve) move(t.user_id, t.amount, "topup");
+        return { ...one("SELECT * FROM topups WHERE id = ?", id), credit: one("SELECT credit FROM users WHERE id = ?", t.user_id).credit };
+      });
+    },
+    pendingTopups: () => db.prepare("SELECT * FROM topups WHERE status = 'pending' ORDER BY id").all(),
+    topupsOf: (userId, limit = 5) => db.prepare("SELECT * FROM topups WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit),
+
     grant(userId, amount) {
       this.user(userId);
       tx(() => move(userId, amount, "grant"));
@@ -195,6 +225,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         const files = rows.flatMap((r) => [r.evidence, ...JSON.parse(r.options || "[]").map((o) => o.image)]).filter(Boolean);
         run("DELETE FROM jobs WHERE user_id = ?", userId);
         run("DELETE FROM ledger WHERE user_id = ?", userId);
+        run("DELETE FROM topups WHERE user_id = ?", userId);
         run("DELETE FROM users WHERE id = ?", userId);
         run("DELETE FROM sessions WHERE user_id = ?", userId);
         return files;

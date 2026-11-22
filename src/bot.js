@@ -31,15 +31,23 @@ const resultOf = (j) => ({
   coverage: j.coverage ? JSON.parse(j.coverage) : null,
 });
 
-export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, maxUsers = 0, log = console }) {
+export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, maxUsers = 0, topup = null, log = console }) {
+  // How to pay, in one message: where to transfer, then the word that tells staff to check.
+  const howToPay = () => topup
+    ? `เติมเครดิต ${baht(topup.amount)}: โอนไปที่ PromptPay ${topup.promptpay}${topup.name ? ` (${topup.name})` : ""} แล้วพิมพ์ "โอนแล้ว" ทีมงานตรวจยอดแล้วเติมให้ภายใน 1 วันทำการ`
+    : `ช่วงทดลอง ทักทีมงานเพื่อเติมเครดิต พิมพ์ "เครดิต" เพื่อดูรหัสผู้ใช้`;
   const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
   async function onText(userId, replyToken, msg) {
     const user = store.user(userId);
     if (msg.trim() === "เครดิต") {
       // Testers send this id to staff, who add credit with `node src/cli.js grant <id> <baht>`.
-      return line.reply(replyToken, [text(`เครดิตคงเหลือ ${baht(user.credit)}\nรหัสผู้ใช้ (ส่งให้ทีมงานเมื่อขอเติมเครดิต)\n${userId}`)]);
+      return line.reply(replyToken, [text(topup ? `เครดิตคงเหลือ ${baht(user.credit)}\n${howToPay()}` : `เครดิตคงเหลือ ${baht(user.credit)}\nรหัสผู้ใช้ (ส่งให้ทีมงานเมื่อขอเติมเครดิต)\n${userId}`)]);
     }
     if (msg.trim() === "ผลล่าสุด") return line.reply(replyToken, await latest(userId));
+    if (msg.trim() === "โอนแล้ว" && topup) {
+      const t = store.requestTopup(userId, topup.amount);
+      return line.reply(replyToken, [text(`รับแจ้งแล้ว (คำขอที่ ${t.id}) ทีมงานจะตรวจยอด ${baht(t.amount)} ในบัญชีแล้วเติมเครดิตให้ภายใน 1 วันทำการ เติมแล้วจะแจ้งในแชทนี้\nถ้ายังไม่ได้โอน คำขอจะถูกปฏิเสธ`)]);
+    }
     if (full()) return line.reply(replyToken, [text(FULL)]); // every quote is a paid Claude call
     const job = store.addQuote(userId, msg, await quote(msg));
     if (job.status === "rejected") return line.reply(replyToken, [text(`ขอโทษครับ งานนี้ Smith ยังทำไม่ได้\n${job.reason}\nไม่คิดเงินครับ`)]);
@@ -61,7 +69,7 @@ export function createBot({ store, line, quote, runner, publicUrl = "", dailyCos
       const r = store.start(userId, id);
       if (!r.ok) {
         const msg = r.reason === "credit"
-          ? `เครดิตไม่พอ งานนี้ ${baht(r.job.price)} คุณมี ${baht(store.user(userId).credit)}\nช่วงทดลอง ทักทีมงานเพื่อเติมเครดิต พิมพ์ "เครดิต" เพื่อดูรหัสผู้ใช้`
+          ? `เครดิตไม่พอ งานนี้ ${baht(r.job.price)} คุณมี ${baht(store.user(userId).credit)}\n${howToPay()}\nเติมแล้วกดเริ่มงานนี้ได้อีกครั้ง`
           : "งานนี้เริ่มไปแล้ว หรือยกเลิกไปแล้วครับ";
         return line.reply(replyToken, [text(msg)]);
       }

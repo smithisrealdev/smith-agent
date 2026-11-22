@@ -548,7 +548,7 @@
         : `<div class="grow"></div><div class="center"><div class="mascot">${M.small || ""}</div><h1 style="font-size:24px">ยังไม่มีงาน</h1><p class="muted">งานที่สั่งจะอยู่ตรงนี้ทั้งหมด</p></div><div class="grow"></div><a class="btn" href="#/">สั่งงานแรก</a>`}`);
   }
 
-  const KIND = { start: "เครดิตเริ่มต้น", grant: "ทีมงานเติมเครดิต", release: "คืนเครดิต งานไม่สำเร็จ", refund: "คืนเงิน" };
+  const KIND = { start: "เครดิตเริ่มต้น", grant: "ทีมงานเติมเครดิต", topup: "เติมเครดิตผ่าน PromptPay", release: "คืนเครดิต งานไม่สำเร็จ", refund: "คืนเงิน" };
   const ledgerRow = (e) => {
     const plus = e.amount > 0;
     const label = e.kind === "hold" ? e.title || "งาน" : e.title ? `${KIND[e.kind]}: ${e.title}` : KIND[e.kind] || e.kind;
@@ -557,15 +557,31 @@
       <span class="money ${plus ? "plus" : ""}">${plus ? "+" : "−"}${baht(Math.abs(e.amount))}</span></div>`;
   };
   async function wallet() {
-    const [ledger, me] = await Promise.all([api("GET", "/api/ledger"), api("GET", "/api/me")]);
-    const { credit, entries = [] } = ledger.data;
+    const [ledger, me, list] = await Promise.all([api("GET", "/api/ledger"), api("GET", "/api/me"), api("GET", "/api/jobs")]);
+    const { credit, entries = [], topups = [] } = ledger.data;
+    const pay = me.data.topup; // where to transfer, when the server takes PromptPay top-ups
+    const waitingJob = (list.data.jobs || []).find((j) => j.status === "quoted"); // a quote that may be waiting for this credit
+    const latest = topups[0];
+    const topupCard = pay
+      ? `<div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">เติมเครดิต ${baht(pay.amount)}</span>
+          <span class="small muted">โอนผ่าน PromptPay แล้วแจ้งทีมงาน</span></span></div>
+          <div class="step"><span class="n">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""}</span></div>
+          <button class="pill-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px">คัดลอกเลข PromptPay</button>
+          <div class="step"><span class="n">2</span><span>กด "โอนแล้ว" ทีมงานตรวจยอดในบัญชีแล้วเติมให้ภายใน 1 วันทำการ</span></div>
+          ${latest?.status === "pending"
+            ? `<div class="note warn">${I.clock}<span>รอทีมงานตรวจยอด ${baht(latest.amount)} · ${esc(when(latest.created_at))}</span></div>`
+            : `${latest?.status === "rejected" ? `<div class="note bad">${I.info}<span>ครั้งก่อนทีมงานยังไม่พบยอดโอน ถ้าโอนแล้วจริง ทักทีมงานพร้อมสลิป</span></div>` : ""}
+              <button class="btn" data-act="topup">โอนแล้ว แจ้งทีมงาน</button>`}</div>`
+      : `<div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
+          <span class="small muted">ช่วงทดลองยังซื้อในแอปไม่ได้ ทีมงานเติมให้</span></span></div>
+          <p class="small muted">ส่งรหัสนี้ให้ทีมงานเพื่อขอเติมเครดิต</p>
+          <div class="note" style="font-family:monospace;font-size:12px;user-select:all;overflow-wrap:anywhere">${esc(me.data.id)}</div></div>`;
+    state.pay = pay;
     render(`${topbar("เครดิต")}
       <div class="wallet-card"><div class="col grow" style="gap:2px"><div style="font-size:15px;font-weight:500">เครดิตคงเหลือ</div>
         <div class="big">${baht(credit)}</div><div class="small" style="font-weight:600">ใช้ได้ราว ${Math.floor(credit / (me.data.prices?.M || 9))} งาน</div></div><span style="flex:none">${M.small || ""}</span></div>
-      <div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
-        <span class="small muted">ช่วงทดลองยังซื้อในแอปไม่ได้ ทีมงานเติมให้</span></span></div>
-        <p class="small muted">ส่งรหัสนี้ให้ทีมงานเพื่อขอเติมเครดิต</p>
-        <div class="note" style="font-family:monospace;font-size:12px;user-select:all;overflow-wrap:anywhere">${esc(me.data.id)}</div></div>
+      ${waitingJob ? `<a class="note" href="#/quote/${waitingJob.id}" style="text-decoration:none;color:inherit">${I.clock}<span class="grow">งานที่รอเริ่ม: ${esc(waitingJob.title || waitingJob.text)} · ${baht(waitingJob.price)}</span><span class="link-btn" style="min-height:0;white-space:nowrap">กลับไปเริ่ม</span></a>` : ""}
+      ${topupCard}
       <div class="sect">รายการล่าสุด</div>
       <div class="card list">${entries.map(ledgerRow).join("") || '<div class="item muted">ยังไม่มีรายการ</div>'}</div>`);
   }
@@ -826,6 +842,22 @@
         }
       }
       window.open(`https://line.me/R/share?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    },
+    async topup(_, btn) {
+      busy(btn, "กำลังแจ้ง");
+      const r = await api("POST", "/api/topup");
+      await route();
+      toast(r.ok ? "แจ้งแล้ว ทีมงานจะตรวจยอดแล้วเติมให้ภายใน 1 วันทำการ" : "แจ้งไม่สำเร็จ ลองใหม่อีกครั้ง");
+    },
+    async "copy-pp"() {
+      const n = state.pay?.promptpay;
+      if (!n) return;
+      try {
+        await navigator.clipboard.writeText(n);
+        toast(`คัดลอก ${n} แล้ว`);
+      } catch {
+        toast(`เลข PromptPay คือ ${n}`); // clipboard needs https; the number is on screen to select
+      }
     },
     async copy(i) {
       const code = state.job?.codes?.[i]?.code;

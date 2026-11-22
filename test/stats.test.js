@@ -142,3 +142,17 @@ test("stats count this month's LINE pushes (one per finished LINE job) and warn 
   assert.doesNotMatch(formatStats(s), /ใกล้เต็ม/);
   assert.match(formatStats({ ...s, linePushes: 240 }), /ใกล้เต็ม/);
 });
+
+test("stats count people who really paid (approved PromptPay top-ups) apart from credit staff gave away", () => {
+  const db = openDb(":memory:");
+  const store = makeStore(db, { startCredit: 9 });
+  store.decideTopup(store.requestTopup("A", 50).id, true);
+  store.decideTopup(store.requestTopup("B", 50).id, false);
+  store.requestTopup("C", 50);
+  store.grant("D", 100);
+  const s = stats(db);
+  assert.equal(s.paidUsers, 1);
+  assert.equal(s.paidBaht, 50);
+  assert.equal(s.topupsWaiting, 1);
+  assert.match(formatStats(s), /จ่ายเงินจริง \(PromptPay ที่อนุมัติแล้ว\) 1 คน รวม ฿50 · รอตรวจ 1 คำขอ/);
+});

@@ -26,6 +26,9 @@ export function stats(db, now = new Date()) {
   for (const j of started) if (!firstStart.has(j.user_id) || j.started_at < firstStart.get(j.user_id)) firstStart.set(j.user_id, j.started_at);
   const activated3d = accounts.filter((u) => firstStart.has(u.id) && Date.parse(firstStart.get(u.id)) - Date.parse(u.created_at) <= 3 * 86400e3).length;
   const toppedUp = db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM ledger WHERE kind = 'grant'").get().n;
+  // Money actually received: PromptPay top-ups staff approved after seeing them in the bank. The number that answers "will anyone pay?"
+  const paid = db.prepare("SELECT COUNT(DISTINCT user_id) AS n, COALESCE(SUM(amount), 0) AS baht FROM topups WHERE status = 'approved'").get();
+  const topupsWaiting = db.prepare("SELECT COUNT(*) AS n FROM topups WHERE status = 'pending'").get().n;
   // Each finished job of a LINE user is one push message (cards, picture and text go out together), and the free
   // LINE OA plan stops delivering after its monthly quota. Counted from the 1st of this month, Thai time.
   const bkk = new Date(now.getTime() + 7 * 3600e3);
@@ -61,6 +64,9 @@ export function stats(db, now = new Date()) {
     activated3d,
     outOfCredit: accounts.filter((u) => u.credit < SIZES.S.price).length,
     toppedUp,
+    paidUsers: paid.n,
+    paidBaht: paid.baht,
+    topupsWaiting,
     medianSeconds: seconds.length ? seconds[Math.floor(seconds.length / 2)] : 0,
   };
 }
@@ -90,6 +96,7 @@ export function formatStats(s) {
     `ผู้ใช้ ${s.users} · กลับมาใช้ซ้ำ ${s.repeatUsers}`,
     `ข้อความ LINE แบบ push เดือนนี้ ${s.linePushes}${config.linePushQuota ? ` จากโควตา ${config.linePushQuota}${s.linePushes >= config.linePushQuota * 0.8 ? " ⚠ ใกล้เต็ม: เกินโควตาแล้วผลจะไม่ถึงผู้ใช้ ย้ายแพ็กเกจ LINE OA หรือบอกให้พิมพ์ \"ผลล่าสุด\"" : ""}` : ""}`,
     `บัญชี ${s.accounts} · เริ่มงานแรกภายใน 3 วัน ${s.activated3d} · เครดิตหมด ${s.outOfCredit} · ทีมงานเติมเครดิตให้ ${s.toppedUp} คน`,
+    `จ่ายเงินจริง (PromptPay ที่อนุมัติแล้ว) ${s.paidUsers} คน รวม ฿${s.paidBaht}${s.topupsWaiting ? ` · รอตรวจ ${s.topupsWaiting} คำขอ (node src/cli.js topups)` : ""}`,
   ].join("\n");
 }
 

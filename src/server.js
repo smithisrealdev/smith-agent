@@ -18,14 +18,14 @@ const db = openDb(config.dbPath);
 const store = makeStore(db, config);
 const runner = createRunner({ store, runTask, screenshot, saveLogos, saveImages, evidenceDir: config.evidenceDir });
 const bot = config.lineSecret && config.lineToken
-  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers })
+  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup })
   : null;
 const lineLogin = config.lineLoginId && config.lineLoginSecret && config.publicUrl
   ? createLineLogin({ channelId: config.lineLoginId, channelSecret: config.lineLoginSecret, callbackUrl: `${config.publicUrl}/auth/line/callback` })
   : null;
 const web = createWeb({
   store, quote, runner, lineLogin, notify: bot?.notify,
-  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers,
+  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup,
 });
 
 if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");

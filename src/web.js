@@ -40,7 +40,7 @@ export function jobView(j) {
 
 // The phone app's API. A phone keeps a random token and the server stores only its hash (the "key").
 // Without LINE Login the key is the account; with it, the key must be signed in to a LINE user first.
-export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, maxUsers = 0, now = () => new Date(), log = console }) {
+export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, maxUsers = 0, topup = null, now = () => new Date(), log = console }) {
   const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
   const json = (res, status, body) => {
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -93,7 +93,12 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     const m = /^\/api\/jobs\/(\d+)(?:\/(start|cancel|refund))?$/.exec(path);
     const id = m && Number(m[1]);
 
-    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null, prices: { S: SIZES.S.price, M: SIZES.M.price, L: SIZES.L.price } });
+    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null, prices: { S: SIZES.S.price, M: SIZES.M.price, L: SIZES.L.price }, topup });
+
+    if (req.method === "POST" && path === "/api/topup") {
+      if (!topup) return json(res, 404, { error: "not_found" });
+      return json(res, 200, { topup: store.requestTopup(userId, topup.amount), credit: credit(userId) });
+    }
 
     if (req.method === "DELETE" && path === "/api/me") {
       for (const file of store.deleteUser(userId)) await rm(join(evidenceDir, basename(file)), { force: true });
@@ -102,7 +107,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
 
     if (req.method === "GET" && path === "/api/jobs") return json(res, 200, { jobs: store.jobsOf(userId).map(view) });
 
-    if (req.method === "GET" && path === "/api/ledger") return json(res, 200, { credit: credit(userId), entries: store.ledgerOf(userId) });
+    if (req.method === "GET" && path === "/api/ledger") return json(res, 200, { credit: credit(userId), entries: store.ledgerOf(userId), topups: store.topupsOf(userId) });
 
     if (req.method === "POST" && path === "/api/quote") {
       const text = String((await body(req)).text || "").trim();
