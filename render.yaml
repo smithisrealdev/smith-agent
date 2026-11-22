@@ -1,5 +1,7 @@
 # Deploy on Render from a phone or computer: Dashboard > New > Blueprint > pick this repository.
 # Render asks for the two secrets below; add LINE keys later under Environment if you use LINE.
+# Claude is reached through OpenRouter (credit you top up at openrouter.ai). To use an Anthropic key instead, replace
+# OPENROUTER_API_KEY below with ANTHROPIC_API_KEY.
 services:
   - type: web
     name: smith-agent
@@ -12,7 +14,7 @@ services:
       mountPath: /data
       sizeGB: 1
     envVars:
-      - key: ANTHROPIC_API_KEY
+      - key: OPENROUTER_API_KEY
         sync: false
       - key: WEB_INVITE_CODE
         sync: false
@@ -23,8 +25,7 @@ services:
       # Trial credit: by default one medium job (= PRICE_M, ฿12), see founder/cfo.md.
       # - key: START_CREDIT
       #   value: "27"
-      # Using OpenRouter credit instead of an Anthropic key: add OPENROUTER_API_KEY under Environment in the dashboard
-      # (ANTHROPIC_API_KEY can then stay empty). The doctor command shows the credit left.
+      # The doctor command shows the OpenRouter credit left. The model defaults to deepseek/deepseek-v4-flash.
       # Optional: lets you download a copy of the database from /admin/backup (see the README). Add it under
       # Environment in the Render dashboard instead of here: a secret does not belong in this file.
       # - key: ADMIN_TOKEN

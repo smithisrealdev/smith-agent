@@ -172,7 +172,7 @@ docker run -d --name smith -p 3000:3000 --env-file .env -v smith-data:/data smit
 2. **สร้าง Blueprint:** กด **New** แล้วเลือก **Blueprint** เลือก repo `smith-agent`
    - ถ้างานยังอยู่ใน branch `claude/hopeful-galileo-2f7t8e` ให้เลือก branch นั้น หรือ merge เข้า main ก่อน
 3. **ใส่ค่า:** Render จะถาม 2 ค่า
-   - `ANTHROPIC_API_KEY`
+   - `OPENROUTER_API_KEY` (สร้างที่ openrouter.ai/keys และเติมเครดิตก่อน)
    - `WEB_INVITE_CODE` (รหัสเชิญที่คุณตั้งเอง)
 
    ใส่แล้วกด **Apply**
