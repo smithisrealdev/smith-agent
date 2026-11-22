@@ -18,10 +18,12 @@ function fakeClient(...responses) {
         stream: (params) => {
           const res = next(params);
           const handlers = [];
+          const events = [];
           return {
-            on: (event, cb) => event === "contentBlock" && handlers.push(cb),
+            on: (event, cb) => (event === "contentBlock" ? handlers.push(cb) : event === "streamEvent" && events.push(cb)),
             finalMessage: async () => {
               for (const block of res.content) handlers.forEach((h) => h(block));
+              if (res.charged !== undefined) events.forEach((h) => h({ type: "message_delta", usage: { cost: res.charged } })); // OpenRouter's real charge, as in its stream
               return res;
             },
           };
@@ -209,4 +211,12 @@ test("Claude gets Anthropic's search tools; any other model gets OpenRouter's, w
   const M = { searches: 6, fetches: 4 };
   for (const m of ["claude-opus-5-5", "anthropic/claude-sonnet-5.5"]) assert.deepEqual(webTools(m, M).map((t) => [t.type, t.max_uses]), [["web_search_20260209", 6], ["web_fetch_20260209", 4]]);
   assert.deepEqual(webTools("z-ai/glm-5.3", M).map((t) => [t.type, t.parameters.max_uses]), [["openrouter:web_search", 6], ["openrouter:web_fetch", 4]]);
+});
+
+test("a streamed job through OpenRouter is charged what OpenRouter says (from the stream), not what a Claude price table would say", async () => {
+  const report = { model: "z-ai/glm-5.3", stop_reason: "tool_use", usage: usage({ input_tokens: 3000, output_tokens: 800 }), charged: 0.02, content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [] })] };
+  const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(report));
+  assert.equal(r.usage.cost.toFixed(2), "0.72", "$0.02 at 36 baht, however many tokens");
+  const plain = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient({ ...report, charged: undefined, model: "claude-opus-5-5" }));
+  assert.ok(plain.usage.cost > 0, "with no stated charge (Anthropic direct) the list prices still apply");
 });

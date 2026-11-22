@@ -207,6 +207,11 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
     // Streamed so each search and page read can be shown while the job runs. The report tool's input stays
     // buffered (no eager_input_streaming): it is small, and buffering keeps the strict schema check.
     const stream = client.beta.messages.stream(params);
+    // OpenRouter states the real charge in the stream's message_delta; the SDK drops it from the final message, so take it here.
+    let charged;
+    stream.on("streamEvent", (e) => {
+      if (e.type === "message_delta" && typeof e.usage?.cost === "number") charged = e.usage.cost;
+    });
     stream.on("contentBlock", (block) => {
       if (toolName(block) === "web_fetch" && hostOf(block.input?.url)) fetching.set(block.id, hostOf(block.input.url));
       else if (fetching.has(block.tool_use_id)) {
@@ -223,7 +228,7 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
     // shortcut: OpenRouter does not send page results back for non-Claude models, so a page asked for counts as read; a blocked site then goes unseen
     for (const host of fetching.values()) read.add(host), pages++;
     fetching.clear();
-    usage.cost += costThb(res.model, res.usage);
+    usage.cost += costThb(res.model, { ...res.usage, cost: charged ?? res.usage?.cost });
     usage.input_tokens += res.usage?.input_tokens || 0;
     usage.output_tokens += res.usage?.output_tokens || 0;
     usage.searches += res.usage?.server_tool_use?.web_search_requests || 0;
