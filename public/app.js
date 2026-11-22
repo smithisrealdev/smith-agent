@@ -565,7 +565,7 @@
     const waitingJob = (list.data.jobs || []).find((j) => j.status === "quoted" && Date.now() - Date.parse(j.createdAt) < 7 * 86400e3);
     const latest = topups[0];
     const topupCard = pay
-      ? `<div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">เติมเครดิต ${baht(pay.amount)}</span>
+      ? `<div class="card pad col"><div class="row"><span class="tile bare">${svg(IC.fill.wallet, 28)}</span><span class="col grow" style="gap:2px"><span class="t">เติมเครดิต ${baht(pay.amount)}</span>
           <span class="small muted">โอนผ่าน PromptPay แล้วแจ้งทีมงาน</span></span></div>
           <div class="step"><span class="n">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""} ใส่หมายเหตุการโอนว่า <b>${esc(pay.ref)}</b> ทีมงานใช้รหัสนี้จับคู่ยอดกับบัญชีของคุณ</span></div>
           <button class="pill-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px">คัดลอกเลข PromptPay</button>
@@ -574,7 +574,7 @@
             ? `<div class="note warn">${I.clock}<span>รอทีมงานตรวจยอด ${baht(latest.amount)} · ${esc(when(latest.created_at))}</span></div>`
             : `${latest?.status === "rejected" ? `<div class="note bad">${I.info}<span>ครั้งก่อนทีมงานยังไม่พบยอดโอน ถ้าโอนแล้วจริง ทักทีมงานพร้อมสลิป</span></div>` : ""}
               <button class="btn" data-act="topup">โอนแล้ว แจ้งทีมงาน</button>`}</div>`
-      : `<div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
+      : `<div class="card pad col"><div class="row"><span class="tile bare">${svg(IC.fill.wallet, 28)}</span><span class="col grow" style="gap:2px"><span class="t">ซื้อเครดิต</span>
           <span class="small muted">ช่วงทดลองยังซื้อในแอปไม่ได้ ทีมงานเติมให้</span></span></div>
           <p class="small muted">ส่งรหัสนี้ให้ทีมงานเพื่อขอเติมเครดิต</p>
           <div class="note" style="font-family:monospace;font-size:12px;user-select:all;overflow-wrap:anywhere">${esc(me.data.id)}</div></div>`;
