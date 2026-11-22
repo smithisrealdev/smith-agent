@@ -1,4 +1,5 @@
 // Admin commands for the experiment:
+//   node src/cli.js doctor                    is this server set up for the test? (Claude, disk, LINE quota, settings)
 //   node src/cli.js stats                     the experiment's numbers
 //   node src/cli.js jobs [n]                  the last n jobs, with why each failed or was refunded
 //   node src/cli.js grant <lineUserId> <baht> add credit for a tester
@@ -9,7 +10,9 @@
 //   node src/cli.js refund <jobId>            approve a refund waiting for review
 //   node src/cli.js topups                    PromptPay top-ups waiting: check each in your bank app first
 //   node src/cli.js topup <id> [no]           credit a top-up you found in the bank (or "no": not received)
-import { config } from "./config.js";
+import { config, SIZES } from "./config.js";
+import Anthropic from "@anthropic-ai/sdk";
+import { checkSetup, formatSetup, liveProbes } from "./doctor.js";
 import { openDb, makeStore, payRef } from "./db.js";
 import { stats, formatStats, formatJobs, formatQueue } from "./stats.js";
 import { backupDb, restoreDb } from "./backup.js";
@@ -23,7 +26,10 @@ const [cmd, a, b] = process.argv.slice(2);
 const db = openDb(config.dbPath);
 const store = makeStore(db, config);
 
-if (cmd === "stats") {
+if (cmd === "doctor") {
+  const lineLogin = Boolean(config.lineLoginId && config.lineLoginSecret && config.publicUrl);
+  console.log(formatSetup(await checkSetup(process.env, config, SIZES, liveProbes(config, { Anthropic, lineLogin }))));
+} else if (cmd === "stats") {
   console.log(formatStats(stats(db)));
 } else if (cmd === "jobs") {
   console.log(formatJobs(db, Number(a) || 20));
@@ -78,6 +84,6 @@ if (cmd === "stats") {
     }
   }
 } else {
-  console.log("usage: node src/cli.js stats | jobs [n] | queue | trial [task ...] | backup | restore <file> yes | grant <userId> <baht> | refund <jobId> | topups | topup <id> [no]");
+  console.log("usage: node src/cli.js doctor | stats | jobs [n] | queue | trial [task ...] | backup | restore <file> yes | grant <userId> <baht> | refund <jobId> | topups | topup <id> [no]");
   process.exitCode = 1;
 }
