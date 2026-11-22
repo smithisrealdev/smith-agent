@@ -125,3 +125,20 @@ test("stats count who started within 3 days, who ran out of credit, and who was 
   assert.equal(s.toppedUp, 1);
   assert.match(formatStats(s), /บัญชี 3 · เริ่มงานแรกภายใน 3 วัน 1 · เครดิตหมด 1 · ทีมงานเติมเครดิตให้ 1 คน/);
 });
+
+test("stats count this month's LINE pushes (one per finished LINE job) and warn near the quota", () => {
+  let t = Date.parse("2026-10-31T18:00:00Z"); // 01:00 on 1 Nov in Bangkok
+  const db = openDb(":memory:");
+  const store = makeStore(db, { startCredit: 500, now: () => new Date(t) });
+  const q = { doable: true, reason: "", title: "t", steps: [], size: "M", cost: 0 };
+  const finish = (user) => { store.user(user); const j = store.addQuote(user, "x", q); store.start(user, j.id); store.finish(j.id, { ok: true, answer: "ok", usage: { cost: 0 } }); };
+  finish("Uline");
+  t = Date.parse("2026-10-31T16:00:00Z"); // 23:00 on 31 Oct in Bangkok: last month
+  finish("Uline");
+  finish("web:abc"); // web-only accounts get no push
+  const s = stats(db, new Date("2026-11-20T03:00:00Z"));
+  assert.equal(s.linePushes, 1);
+  assert.match(formatStats(s), /ข้อความ LINE แบบ push เดือนนี้ 1 จากโควตา 300/);
+  assert.doesNotMatch(formatStats(s), /ใกล้เต็ม/);
+  assert.match(formatStats({ ...s, linePushes: 240 }), /ใกล้เต็ม/);
+});

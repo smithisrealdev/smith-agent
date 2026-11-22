@@ -1,7 +1,7 @@
-import { STORE_NET_RATE, SIZES } from "./config.js";
+import { STORE_NET_RATE, SIZES, config } from "./config.js";
 
 // The experiment's numbers: does Smith finish jobs, and does the price cover what Claude costs?
-export function stats(db) {
+export function stats(db, now = new Date()) {
   const jobs = db.prepare("SELECT * FROM jobs").all();
   const count = (status) => jobs.filter((j) => j.status === status).length;
   const sum = (list, f) => list.reduce((s, j) => s + f(j), 0);
@@ -26,6 +26,11 @@ export function stats(db) {
   for (const j of started) if (!firstStart.has(j.user_id) || j.started_at < firstStart.get(j.user_id)) firstStart.set(j.user_id, j.started_at);
   const activated3d = accounts.filter((u) => firstStart.has(u.id) && Date.parse(firstStart.get(u.id)) - Date.parse(u.created_at) <= 3 * 86400e3).length;
   const toppedUp = db.prepare("SELECT COUNT(DISTINCT user_id) AS n FROM ledger WHERE kind = 'grant'").get().n;
+  // Each finished job of a LINE user is one push message (cards, picture and text go out together), and the free
+  // LINE OA plan stops delivering after its monthly quota. Counted from the 1st of this month, Thai time.
+  const bkk = new Date(now.getTime() + 7 * 3600e3);
+  const monthStart = new Date(Date.UTC(bkk.getUTCFullYear(), bkk.getUTCMonth(), 1) - 7 * 3600e3).toISOString();
+  const linePushes = jobs.filter((j) => !j.user_id.startsWith("web:") && j.finished_at && j.finished_at >= monthStart).length;
   const seconds = finished.map((j) => (Date.parse(j.finished_at) - Date.parse(j.started_at)) / 1000).sort((a, b) => a - b);
   return {
     quotes: jobs.length,
@@ -51,6 +56,7 @@ export function stats(db) {
     avgPricePaid: charged.length ? revenue / charged.length : 0,
     users: perUser.size,
     repeatUsers: [...perUser.values()].filter((n) => n >= 2).length,
+    linePushes,
     accounts: accounts.length,
     activated3d,
     outOfCredit: accounts.filter((u) => u.credit < SIZES.S.price).length,
@@ -82,6 +88,7 @@ export function formatStats(s) {
     `รายได้ ${thb(s.revenue)} · ต้นทุน Claude ${thb(s.cost)} · ต้นทุนต่องานที่เริ่ม ${thb(s.costPerStartedJob)} · ราคาเฉลี่ย ${thb(s.avgPricePaid)}`,
     `กำไรขั้นต้น ${thb(s.margin)} · หลังหัก VAT และค่าธรรมเนียมสโตร์ 15% ${thb(s.marginAfterStoreFee)}`,
     `ผู้ใช้ ${s.users} · กลับมาใช้ซ้ำ ${s.repeatUsers}`,
+    `ข้อความ LINE แบบ push เดือนนี้ ${s.linePushes}${config.linePushQuota ? ` จากโควตา ${config.linePushQuota}${s.linePushes >= config.linePushQuota * 0.8 ? " ⚠ ใกล้เต็ม: เกินโควตาแล้วผลจะไม่ถึงผู้ใช้ ย้ายแพ็กเกจ LINE OA หรือบอกให้พิมพ์ \"ผลล่าสุด\"" : ""}` : ""}`,
     `บัญชี ${s.accounts} · เริ่มงานแรกภายใน 3 วัน ${s.activated3d} · เครดิตหมด ${s.outOfCredit} · ทีมงานเติมเครดิตให้ ${s.toppedUp} คน`,
   ].join("\n");
 }

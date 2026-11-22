@@ -32,6 +32,7 @@ export const config = {
   quotesPerHour: Number(env.QUOTES_PER_HOUR || 30), // per user; every quote is a paid Claude call
   adminToken: adminToken(env.ADMIN_TOKEN), // turns on GET /admin/backup; leave empty to keep that route off
   dailyCostCap: whole("DAILY_COST_CAP", 500, 0), // baht of Claude cost per Thai day, all users together; 0 turns the cap off
+  linePushQuota: whole("LINE_PUSH_QUOTA", 300, 0), // pushes a month on your LINE OA plan (free plan in Thailand: 300); stats warns near it
   maxUsers: whole("MAX_USERS", 0, 0), // accounts allowed in the test round (the invite code is shared, so it caps nothing); 0 = no limit
 };
 
