@@ -126,9 +126,9 @@
   // so a cheap flight is a flight and a cheap restaurant is a restaurant, not a price check.
   const KINDS = [
     ["plane", /ตั๋ว|เที่ยวบิน|เครื่องบิน|สายการบิน|บินไป|ที่พัก|โรงแรม|ทริป|เที่ยว|flight|hotel/i],
+    ["receipt", /ราคาส่ง|ขายส่ง|เข้าร้าน|สต็อก/i],
     ["food", /ร้านอาหาร|อาหาร|ร้านอร่อย|คาเฟ่|กาแฟ|ของกิน|บุฟเฟ่ต์|ร้านกิน|ร้าน.{0,8}(กิน|อร่อย)/i],
     ["doc", /ข่าว|สรุป|บทความ|อ่าน|รีวิว/i],
-    ["receipt", /ราคาส่ง|ขายส่ง|เข้าร้าน|สต็อก/i],
     ["tag", /ราคา|เทียบ|ซื้อ|ถูก|โค้ด|ส่วนลด|โปร|shopee|lazada/i],
   ];
   const kindOf = (text) => KINDS.find(([, re]) => re.test(text || ""))?.[0] || "sparkle";
@@ -266,6 +266,7 @@
     state.me = me.data;
     state.jobs = list.data.jobs || [];
     render(homeView());
+    fitCmd(document.getElementById("cmd")); // a saved draft opens at its full height
     if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
   }
   // Only the credit, the running card and the job list are redrawn, so the composer and what the user types stay put.
@@ -279,34 +280,67 @@
     }
     if (state.jobs.some((j) => j.status === "running")) poll(refreshHome, 5000);
   }
-  const liveCard = (j) => `<a class="item live-card" href="#/job/${j.id}"><span class="tile">${D.bolt}${logoImg(j.progress?.at(-1)?.host)}</span>
-      <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
-      <span class="s">${esc(j.progress?.at(-1)?.text || "กำลังเริ่มงาน")} ${DOTS}</span><span class="s">ผ่านไป ${duration(j.startedAt)}</span></span>${I.chev}</a>`;
+  // The home screen is a grid of cards, each fed by real data only: the job running now (or the price list), a big
+  // "new job" card, the latest result, the latest jobs, and this month's spend. The composer is docked below them.
+  const thisMonth = (iso) => { const d = new Date(iso), n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth(); };
+  const kindIcon = (j, size = 22) => { const [, tone] = STATUS[j.status] || ["", "grey"]; return `<span class="kind ${tone}">${svg(IC.fill[kindOf(`${j.title} ${j.text}`)], size)}</span>`; };
   function homeParts() {
-    const running = state.jobs.filter((j) => j.status === "running");
-    const jobs = state.jobs.filter((j) => !["rejected", "cancelled", "running"].includes(j.status)).slice(0, 5);
-    const empty = running.length ? "" : `<div class="sect">งานของฉัน</div><div class="note">${I.info}<span>งานที่สั่งจะอยู่ตรงนี้ Smith บอกราคาก่อนเริ่มทุกงาน และไม่สำเร็จไม่คิดเงิน</span></div>`;
+    const running = state.jobs.find((j) => j.status === "running");
+    const done = state.jobs.find((j) => ["done", "refund_review", "refunded"].includes(j.status));
+    const recent = state.jobs.filter((j) => !["rejected", "cancelled"].includes(j.status) && j !== running && j !== done).slice(0, 3);
+    const month = state.jobs.filter((j) => thisMonth(j.createdAt));
+    const spent = month.filter((j) => ["done", "refund_review"].includes(j.status)).reduce((s, j) => s + j.price, 0);
+    const ok = month.filter((j) => ["done", "refund_review", "refunded"].includes(j.status)).length;
+    const failed = month.filter((j) => j.status === "failed").length;
+    const prices = state.me.prices || {};
+    const now = running
+      ? `<a class="tile-card soft" href="#/job/${running.id}"><span class="h">กำลังทำ</span><span class="s clamp">${esc(running.title || running.text)}</span><span class="grow"></span>
+          <span class="big">${(running.progress || []).filter((x) => x.host).length}<small> เว็บที่อ่าน</small></span><span class="bar" aria-hidden="true"><i></i></span>
+          <span class="s link clamp">${esc(running.progress?.at(-1)?.text || "กำลังเริ่มงาน")}</span></a>`
+      : `<a class="tile-card soft" href="#/help"><span class="h">ราคาต่องาน</span><span class="s">บอกก่อนเริ่มทุกงาน ไม่สำเร็จไม่คิดเงิน</span><span class="grow"></span>
+          <span class="big">${baht(prices.M || 9)}</span><span class="s">งานกลาง · เล็ก ${baht(prices.S || 5)} · ใหญ่ ${baht(prices.L || 15)}</span></a>`;
+    const last = done
+      ? `<div class="tile-card blue"><span class="h">เสร็จแล้ว</span><span class="s clamp">${esc(done.title || done.text)}</span><span class="grow"></span>
+          <span class="kv"><span>อ่านเว็บ</span><b>${done.coverage?.hosts?.length || done.sources?.length || 0} เว็บ</b></span>
+          <span class="kv"><span>ใช้เวลา</span><b>${duration(done.startedAt, done.finishedAt)}</b></span>
+          <a class="mini-btn" href="#/job/${done.id}">ดูผลงาน</a></div>`
+      : `<div class="tile-card blue"><span class="h">ผลงาน</span><span class="s">งานที่เสร็จจะอยู่ตรงนี้ พร้อมลิงก์ให้เปิดตรวจเอง</span><span class="grow"></span>
+          <span class="kv"><span>ไม่สำเร็จ</span><b>ไม่คิดเงิน</b></span><span class="kv"><span>ผลไม่ตรง</span><b>ขอคืนได้</b></span></div>`;
+    const list = recent.length
+      ? recent.map((j) => `<a class="mini-row" href="${["quoted", "rejected"].includes(j.status) ? `#/quote/${j.id}` : `#/job/${j.id}`}">${kindIcon(j)}<span class="clamp1">${esc(j.title || j.text)}</span></a>`).join("")
+      : '<span class="s">ยังไม่มีงานอื่น ลองแตะตัวอย่างด้านล่าง</span>';
     return {
       "home-credit": `<a class="credit-chip" href="#/wallet" aria-label="เครดิต ${baht(state.me.credit)}">${I.wallet} ${baht(state.me.credit)}</a>`,
-      "home-live": running.map(liveCard).join(""),
-      "home-jobs": jobs.length
-        ? `<div class="row" style="justify-content:space-between"><div class="sect">งานของฉัน</div><a class="link-btn" href="#/history">ดูทั้งหมด</a></div><div class="card list">${jobs.map(jobRow).join("")}</div>`
-        : empty,
+      "home-grid": `<div class="bento">
+        ${now}
+        <button class="tile-card start" data-act="compose"><span class="pic">${M.small || ""}</span><span class="cta">สั่งงาน<br>ใหม่เลย!</span></button>
+        ${last}
+        <div class="tile-card line"><span class="h">งานล่าสุด</span>${list}<span class="grow"></span><a class="s link" href="#/history">ดูทั้งหมด</a></div>
+        <a class="tile-card line wide" href="#/history"><span class="col" style="gap:0"><span class="h">ใช้ไปเดือนนี้</span><span class="big">${baht(spent)}</span></span>
+          <span class="grow col" style="gap:6px"><span class="kv"><span>งานสำเร็จ</span><b>${ok} งาน</b></span><span class="kv"><span>ไม่สำเร็จ ${failed} งาน</span><b class="good">ไม่คิดเงิน</b></span></span></a>
+      </div>`,
     };
   }
   function homeView() {
     const slot = Object.fromEntries(Object.entries(homeParts()).map(([id, html]) => [id, `<div class="slot" id="${id}">${html}</div>`]));
-    return `<div class="topbar"><a class="icon-btn" href="#/settings" aria-label="ตั้งค่า">${I.person}</a><span class="grow"></span>${slot["home-credit"]}</div>
-      ${slot["home-live"]}
-      <div class="row" style="align-items:flex-end"><h1 class="grow">อยากให้ Smith<br>ช่วยอะไรวันนี้</h1><span style="flex:none">${M.small || ""}</span></div>
-      <div class="composer">
-        <label class="sr" for="cmd">พิมพ์งานที่อยากให้ทำ</label>
-        <textarea id="cmd" class="field" rows="3" maxlength="1000" placeholder="เช่น หาตั๋วไปเชียงใหม่ศุกร์นี้ กลับอาทิตย์ ถูกสุด">${esc(state.draft)}</textarea>
-        <button class="btn" data-act="send">สั่งงาน Smith</button>
-      </div>
-      <div class="hscroll" role="group" aria-label="ตัวอย่างงาน">${TEMPLATES.map((t, i) => `<button class="chip ${t.tone}" data-act="template" data-arg="${i}">${svg(IC.fill[t.icon], 20)}${esc(t.label)}</button>`).join("")}</div>
-      ${slot["home-jobs"]}`;
+    const running = state.jobs.some((j) => j.status === "running");
+    return `<div class="topbar"><a class="icon-btn" href="#/settings" aria-label="ตั้งค่า">${I.person}</a>
+        <a class="jobs-pill" href="#/history"><span class="dot${running ? " on" : ""}" aria-hidden="true"></span>งานของฉัน</a>${slot["home-credit"]}</div>
+      <h1 class="sr">Smith</h1>
+      ${slot["home-grid"]}
+      <div class="grow"></div>
+      <div class="dock">
+        <span class="grab" aria-hidden="true"></span>
+        <div class="row" style="align-items:flex-end;gap:8px">
+          <label class="sr" for="cmd">พิมพ์งานที่อยากให้ทำ</label>
+          <textarea id="cmd" class="field" rows="1" maxlength="1000" placeholder="อยากให้ Smith ช่วยอะไร…">${esc(state.draft)}</textarea>
+          <button class="send" data-act="send">สั่งงาน</button>
+        </div>
+        <div class="hscroll" role="group" aria-label="ตัวอย่างงาน">${TEMPLATES.map((t, i) => `<button class="chip ${t.tone}" data-act="template" data-arg="${i}">${svg(IC.fill[t.icon], 20)}${esc(t.label)}</button>`).join("")}</div>
+      </div>`;
   }
+  // The composer is one line until there is more to show; it grows with the text, up to a few lines.
+  const fitCmd = (box) => { if (!box) return; box.style.height = "auto"; box.style.height = `${Math.min(box.scrollHeight, 132)}px`; };
 
   // ---------- quote
   async function quoteScreen(id) {
@@ -639,7 +673,7 @@
         document.getElementById("cmd")?.focus();
         return toast("พิมพ์งานที่อยากให้ทำก่อน");
       }
-      busy(btn, "กำลังคิดราคา");
+      busy(btn, "คิดราคา");
       const r = await api("POST", "/api/quote", { text });
       if (!r.ok) {
         render(homeView());
@@ -649,11 +683,17 @@
       saved.set("draft", "");
       go(`#/quote/${r.data.job.id}`);
     },
+    compose() {
+      const box = document.getElementById("cmd");
+      box.scrollIntoView({ block: "center", behavior: pref("motion") ? "smooth" : "auto" });
+      box.focus({ preventScroll: true });
+    },
     template(i) {
       state.draft = TEMPLATES[i].text;
       saved.set("draft", state.draft);
       render(homeView());
       const box = document.getElementById("cmd");
+      fitCmd(box);
       box.focus();
       const at = box.value.indexOf("[");
       if (at >= 0) box.setSelectionRange(at, box.value.indexOf("]", at) + 1); // select the first blank to fill
@@ -856,6 +896,7 @@
   });
   app.addEventListener("input", (e) => {
     if (e.target.id === "cmd") {
+      fitCmd(e.target);
       state.draft = e.target.value;
       saved.set("draft", state.draft);
     }
