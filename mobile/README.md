@@ -10,6 +10,18 @@
 
 `EXPO_PUBLIC_API_URL` คือที่อยู่เซิร์ฟเวอร์ที่แอปจะเรียก ถ้าไม่ตั้ง แอปจะใช้ `http://localhost:3000`
 
+## ลงบน iPhone ของตัวเอง (ยังไม่ต้องมีบัญชี Apple Developer แบบเสียเงิน)
+
+ใช้ "Personal Team" ฟรีใน Xcode ได้ แต่จะไม่มี Sign in with Apple กับการแจ้งเตือน และแอปใช้ได้ 7 วันต่อการลงหนึ่งครั้ง
+แอปตัวนี้ใช้ bundle ID `com.smithagent.app.dev` (ลงทะเบียนใน LINE Login channel ไว้แล้ว) เพื่อเก็บ `com.smithagent.app` ไว้ให้บัญชีจริง
+
+1. เสียบ iPhone กับ Mac และเปิด Developer Mode ในมือถือ (ตั้งค่า > ความเป็นส่วนตัวและความปลอดภัย > โหมดนักพัฒนา)
+2. ให้เซิร์ฟเวอร์ทดสอบรันอยู่บน Mac (พอร์ต 3100) และมือถืออยู่ Wi‑Fi เดียวกับ Mac
+3. ในโฟลเดอร์นี้ (เปลี่ยน IP เป็นของ Mac: `ipconfig getifaddr en0`):
+   `SMITH_PERSONAL_TEAM=1 EXPO_PUBLIC_API_URL=http://192.168.1.133:3100 npx expo prebuild -p ios --clean`
+   แล้ว `SMITH_PERSONAL_TEAM=1 EXPO_PUBLIC_API_URL=http://192.168.1.133:3100 npx expo run:ios --device --configuration Release`
+4. ครั้งแรกในมือถือ: ตั้งค่า > ทั่วไป > VPN และการจัดการอุปกรณ์ > Apple Development > เชื่อถือ
+
 ## ทดสอบ
 
 - `npm test`: ทดสอบตัวช่วยจัดรูปแบบ (ราคา เวลา การ์ดคำตอบ ข้อความแชร์)

@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import Line, { BotPrompt, Scope } from "@xmartlabs/react-native-line";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
+import Constants from "expo-constants";
 import { api } from "./api";
 
 const LINE_CHANNEL = process.env.EXPO_PUBLIC_LINE_CHANNEL_ID || "2012750284"; // the LINE Login channel (same provider as the bot)
@@ -27,7 +28,8 @@ export async function signInWithLine(): Promise<SignIn> {
   return result(r.status);
 }
 
-export const appleAvailable = () => (Platform.OS === "ios" ? AppleAuthentication.isAvailableAsync() : Promise.resolve(false));
+// A build without the Sign in with Apple capability (the personal-team copy in app.config.js) shows no Apple button.
+export const appleAvailable = () => (Platform.OS === "ios" && Constants.expoConfig?.ios?.usesAppleSignIn ? AppleAuthentication.isAvailableAsync() : Promise.resolve(false));
 
 export async function signInWithApple(): Promise<SignIn> {
   const nonce = Crypto.randomUUID();

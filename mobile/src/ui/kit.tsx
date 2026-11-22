@@ -1,7 +1,7 @@
 // The web app's building blocks (.btn, .card, .note, .pill, .tile, .topbar, ...) as native components, with the
 // press feel the founder asked for: scale down fast, spring back, a light haptic.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View, type TextProps, type TextInputProps, type ViewStyle, type StyleProp } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextProps, type TextInputProps, type ViewStyle, type StyleProp } from "react-native";
 import Animated, { FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, withDelay, useReducedMotion } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -48,8 +48,10 @@ export function Press({ onPress, disabled, style, children, scale = 0.95, haptic
   const s = useSharedValue(1);
   const reduced = useReducedMotion();
   const anim = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  const flex = StyleSheet.flatten(style)?.flex; // the style sits on the inner view, so the Pressable must grow too or a card can't fill its row
   return (
     <Pressable
+      style={flex ? { flex } : undefined}
       accessibilityRole={role}
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled, selected }}

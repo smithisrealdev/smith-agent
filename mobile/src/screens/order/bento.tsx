@@ -87,10 +87,11 @@ export function Bento({ me, jobs, onCompose }: { me: Me; jobs: Job[]; onCompose:
   ) : (
     <TileCard kind="soft" onPress={() => go("/help")} label="ราคาต่องาน">
       <H>ราคาต่องาน</H>
-      <S>บอกก่อนเริ่มทุกงาน ไม่สำเร็จไม่คิดเงิน</S>
+      {/* the card is narrow: break where the phrase starts, and keep each size with its price (no-break spaces) */}
+      <S>{"บอกก่อนเริ่มทุกงาน\nไม่สำเร็จไม่คิดเงิน"}</S>
       <Spacer />
       <T font="mitr-700" size={40} lh={1} style={{ letterSpacing: -1 }}>{baht(prices.M || 9)}</T>
-      <S>งานกลาง · เล็ก {baht(prices.S || 5)} · ใหญ่ {baht(prices.L || 15)}</S>
+      <S>{`งานกลาง\nเล็ก ${baht(prices.S || 5)} · ใหญ่ ${baht(prices.L || 15)}`}</S>
     </TileCard>
   );
 
