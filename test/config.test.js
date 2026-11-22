@@ -45,3 +45,12 @@ test("a bigger job may not cost less than a smaller one", () => {
   assert.match(r.message, /must not go down with size/);
   assert.equal(load({ PRICE_S: "9" }).ok, true, "equal prices are fine");
 });
+
+test("the model defaults to DeepSeek V4 Flash with an OpenRouter key, to Claude Opus without one, and SMITH_MODEL wins over both", () => {
+  const model = (env) => execFileSync(process.execPath, ["--input-type=module", "-e", 'const { config } = await import("./src/config.js"); console.log(config.model)'], {
+    env: { PATH: process.env.PATH, ...env }, encoding: "utf8",
+  }).trim();
+  assert.equal(model({ OPENROUTER_API_KEY: "k" }), "deepseek/deepseek-v4-flash");
+  assert.equal(model({}), "claude-opus-5-5");
+  assert.equal(model({ OPENROUTER_API_KEY: "k", SMITH_MODEL: "z-ai/glm-5.3" }), "z-ai/glm-5.3");
+});

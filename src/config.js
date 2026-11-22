@@ -26,7 +26,7 @@ export const config = {
   lineToken: env.LINE_CHANNEL_ACCESS_TOKEN || "",
   lineLoginId: env.LINE_LOGIN_CHANNEL_ID || "", // with its secret and PUBLIC_URL, the web app requires signing in with LINE
   lineLoginSecret: env.LINE_LOGIN_CHANNEL_SECRET || "",
-  model: env.SMITH_MODEL || (env.OPENROUTER_API_KEY ? "z-ai/glm-5.3" : "claude-opus-5-5"), // GLM-5.3: cheapest model that passed the trial (founder/trial-2026-11-22-models.txt)
+  model: env.SMITH_MODEL || (env.OPENROUTER_API_KEY ? "deepseek/deepseek-v4-flash" : "claude-opus-5-5"), // DeepSeek V4 Flash: passed every trial job and opens the shop pages (founder/trial-2026-11-22-corrected.txt)
   // With an OpenRouter key, Claude is reached through OpenRouter's Anthropic-format endpoint (same tools, same
   // answers, paid from OpenRouter credit). Without one, straight from Anthropic with ANTHROPIC_API_KEY.
   openrouterKey: env.OPENROUTER_API_KEY || "",
