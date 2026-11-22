@@ -103,8 +103,10 @@ const REPORT_TOOL = {
   },
 };
 
-// What one response cost, in baht, at list prices.
+// What one response cost, in baht. OpenRouter states the real charge (tokens, searches, page reads) in usage.cost, in USD;
+// otherwise it is worked out from Anthropic's list prices.
 export function costThb(model, u = {}) {
+  if (typeof u.cost === "number") return u.cost * config.usdThb;
   const [input, output, cacheRead] = MODEL_PRICES[priceKey(model)] || MODEL_PRICES[config.model] || MODEL_PRICES["claude-opus-5-5"];
   const usd =
     ((u.input_tokens || 0) * input +
@@ -139,10 +141,13 @@ export function cleanCodes(list) {
   return out.slice(0, 3);
 }
 
+// OpenRouter runs search and page reads itself for non-Claude models and names them "openrouter:web_search" / "openrouter:web_fetch".
+const toolName = (block) => (block.type === "server_tool_use" ? String(block.name || "").replace(/^openrouter:/, "") : block.name);
+
 // What the user sees while the agent works: one line per finished search, page read, or the final report.
 export function stepOf(block) {
-  if (block.type === "server_tool_use" && block.name === "web_search" && block.input?.query) return `ค้นหา "${block.input.query}"`;
-  if (block.type === "server_tool_use" && block.name === "web_fetch" && hostOf(block.input?.url)) return `เปิดอ่าน ${hostOf(block.input.url)}`;
+  if (toolName(block) === "web_search" && block.input?.query) return `ค้นหา "${block.input.query}"`;
+  if (toolName(block) === "web_fetch" && hostOf(block.input?.url)) return `เปิดอ่าน ${hostOf(block.input.url)}`;
   if (block.type === "tool_use" && block.name === "report") return "สรุปผล";
   return null;
 }
@@ -163,6 +168,21 @@ export async function quote(text, client = getClient()) {
   return { ...q, size: SIZES[q.size] ? q.size : "M", cost };
 }
 
+// Search and page reading. Claude runs Anthropic's tools itself. Any other model through OpenRouter gets OpenRouter's,
+// because OpenRouter ignores max_uses on Anthropic's tools for those models (a trial job ran 8 searches on a budget of 6),
+// and its own tools can also cap how much text each result adds, which is most of the cost on a cheap model.
+export function webTools(model, size) {
+  if (!model.includes("/") || model.startsWith("anthropic/"))
+    return [
+      { type: "web_search_20260209", name: "web_search", max_uses: size.searches, user_location: { type: "approximate", country: "TH", timezone: "Asia/Bangkok" } },
+      { type: "web_fetch_20260209", name: "web_fetch", max_uses: size.fetches },
+    ];
+  return [
+    { type: "openrouter:web_search", parameters: { max_uses: size.searches, max_results: 5, max_characters: 2000 } },
+    { type: "openrouter:web_fetch", parameters: { max_uses: size.fetches, max_content_tokens: 8000 } },
+  ];
+}
+
 export async function runTask(job, client = getClient(), today = new Date(), onProgress = () => {}) {
   const size = SIZES[job.size] || SIZES.M;
   const date = today.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
@@ -173,11 +193,7 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
     ...FALLBACK,
     output_config: { effort: "medium" },
     system: RUN_SYSTEM,
-    tools: [
-      { type: "web_search_20260209", name: "web_search", max_uses: size.searches, user_location: { type: "approximate", country: "TH", timezone: "Asia/Bangkok" } },
-      { type: "web_fetch_20260209", name: "web_fetch", max_uses: size.fetches },
-      REPORT_TOOL,
-    ],
+    tools: [...webTools(modelId(config.model), size), REPORT_TOOL],
     messages: [{ role: "user", content: `วันนี้ ${date} (เวลาไทย)\nงาน: ${job.text}\nแผน:\n${steps}` }],
   };
   const usage = { cost: 0, input_tokens: 0, output_tokens: 0, searches: 0 };
@@ -192,17 +208,21 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
     // buffered (no eager_input_streaming): it is small, and buffering keeps the strict schema check.
     const stream = client.beta.messages.stream(params);
     stream.on("contentBlock", (block) => {
-      if (block.type === "server_tool_use" && block.name === "web_fetch" && hostOf(block.input?.url)) fetching.set(block.id, hostOf(block.input.url));
+      if (toolName(block) === "web_fetch" && hostOf(block.input?.url)) fetching.set(block.id, hostOf(block.input.url));
       else if (fetching.has(block.tool_use_id)) {
         // shortcut: a failed page read is recognised by an "error" in the result's type or an error_code; confirm the exact shape against a real run
         const host = fetching.get(block.tool_use_id);
         if (/error/i.test(block.content?.type || "") || block.content?.error_code) blocked.add(host);
         else (read.add(host), pages++);
+        fetching.delete(block.tool_use_id);
       }
       const step = stepOf(block);
-      if (step) onProgress(step, block.name === "web_fetch" ? block.input.url : ""); // the page, so the step can show that site's logo
+      if (step) onProgress(step, toolName(block) === "web_fetch" ? block.input.url : ""); // the page, so the step can show that site's logo
     });
     const res = await stream.finalMessage();
+    // shortcut: OpenRouter does not send page results back for non-Claude models, so a page asked for counts as read; a blocked site then goes unseen
+    for (const host of fetching.values()) read.add(host), pages++;
+    fetching.clear();
     usage.cost += costThb(res.model, res.usage);
     usage.input_tokens += res.usage?.input_tokens || 0;
     usage.output_tokens += res.usage?.output_tokens || 0;

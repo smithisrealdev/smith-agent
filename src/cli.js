@@ -49,7 +49,7 @@ if (cmd === "doctor") {
   const tasks = process.argv.slice(3).length ? process.argv.slice(3) : TASKS;
   if (tasks.length > MAX_TASKS) throw new Error(`at most ${MAX_TASKS} tasks: each one is a real, paid job`);
   mkdirSync(join(dirname(config.dbPath), "trials"), { recursive: true });
-  const out = join(dirname(config.dbPath), "trials", `trial-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.txt`);
+  const out = join(dirname(config.dbPath), "trials", `trial-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}-${config.model.replace(/\W+/g, "-")}.txt`);
   const say = (t) => (console.log(t), appendFileSync(out, `${t}\n`)); // saved as it goes, so a dropped shell loses nothing
   say(`${tasks.length} งานจริง รุ่น ${config.model} ใช้เครดิต ${config.openrouterKey ? "OpenRouter" : "Anthropic"} ของคุณ ผลบันทึกที่ ${out}`);
   const rows = [];

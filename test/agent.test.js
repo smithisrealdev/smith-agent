@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costThb, quote, runTask, stepOf, cleanCodes, modelId } from "../src/agent.js";
+import { costThb, quote, runTask, stepOf, cleanCodes, modelId, webTools } from "../src/agent.js";
 
 // A stand-in for the SDK client that returns canned responses and records each request.
 function fakeClient(...responses) {
@@ -191,4 +191,22 @@ test("through OpenRouter, models get OpenRouter's names and are still priced fro
   assert.equal(modelId("anthropic/claude-sonnet-5.5", true), "anthropic/claude-sonnet-5.5", "a full OpenRouter id passes through");
   assert.equal(modelId("claude-opus-5-5", false), "claude-opus-5-5");
   assert.equal(costThb("anthropic/claude-sonnet-5.5", { input_tokens: 1e6 }).toFixed(2), costThb("claude-sonnet-5-5", { input_tokens: 1e6 }).toFixed(2));
+});
+
+test("a model through OpenRouter: the real charge comes from usage.cost, and OpenRouter's tool names still show as steps and pages", async () => {
+  assert.equal(costThb("deepseek/deepseek-v4-flash", { cost: 0.01, input_tokens: 1e6 }).toFixed(2), "0.36", "usage.cost (USD) wins over the price table");
+  assert.equal(stepOf({ type: "server_tool_use", name: "openrouter:web_search", input: { query: "q" } }), 'ค้นหา "q"');
+  assert.equal(stepOf({ type: "server_tool_use", name: "openrouter:web_fetch", input: { url: "https://jib.co.th/p" } }), "เปิดอ่าน jib.co.th");
+  const fetch = (id, url) => ({ type: "server_tool_use", id, name: "openrouter:web_fetch", input: { url } });
+  const res = { model: "deepseek/deepseek-v4-flash", stop_reason: "tool_use", usage: { input_tokens: 1, output_tokens: 1, cost: 0.02 },
+    content: [fetch("f1", "https://www.jib.co.th/a"), fetch("f2", "https://jib.co.th/b"), toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [] })] };
+  const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(res));
+  assert.deepEqual(r.coverage, { searches: 0, pages: 2, hosts: ["jib.co.th"], blocked: [] }, "no results come back, so each page asked for counts as read");
+  assert.equal(r.usage.cost.toFixed(2), "0.72");
+});
+
+test("Claude gets Anthropic's search tools; any other model gets OpenRouter's, with the size's budget", () => {
+  const M = { searches: 6, fetches: 4 };
+  for (const m of ["claude-opus-5-5", "anthropic/claude-sonnet-5.5"]) assert.deepEqual(webTools(m, M).map((t) => [t.type, t.max_uses]), [["web_search_20260209", 6], ["web_fetch_20260209", 4]]);
+  assert.deepEqual(webTools("z-ai/glm-5.3", M).map((t) => [t.type, t.parameters.max_uses]), [["openrouter:web_search", 6], ["openrouter:web_fetch", 4]]);
 });
