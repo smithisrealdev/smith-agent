@@ -62,7 +62,6 @@
   const I = Object.fromEntries(Object.entries(IC.bold).map(([k, d]) => [k, svg(d)]));
   const D = Object.fromEntries(Object.entries(IC.fill).map(([k, d]) => [k, svg(d, 22)]));
   const LINE_MARK = svg(IC.line, 24, 24);
-  const COPY = svg('<path d="M216,28H88A12,12,0,0,0,76,40V76H40A12,12,0,0,0,28,88V216a12,12,0,0,0,12,12H168a12,12,0,0,0,12-12V180h36a12,12,0,0,0,12-12V40A12,12,0,0,0,216,28ZM156,204H52V100H156Zm48-48H180V88a12,12,0,0,0-12-12H100V52H204Z"/>', 18);
   const CLOUDS = '<div class="clouds" aria-hidden="true"></div>';
   const SPARK = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z"/></svg>';
   const SPARKS = `<span class="sparks">${SPARK.repeat(3)}</span>`;
@@ -434,7 +433,7 @@
   const codeRow = (c, i) => `<div class="card pad row code"><div class="grow col" style="gap:3px;min-width:0">
       <span class="codetxt">${esc(c.code)}</span><span class="small muted">${esc([c.shop, c.note].filter(Boolean).join(" · "))}</span>
       ${/^https?:\/\//.test(c.url) ? `<a class="host" href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">เจอที่ ${esc(hostOf(c.url))}${svg(IC.bold.external, 14)}</a>` : ""}</div>
-      <button class="pill-btn" data-act="copy" data-arg="${i}">คัดลอก</button></div>`;
+      <button class="pill-btn" data-act="copy" data-arg="${i}">${svg(IC.bold.copy, 16)}คัดลอก</button></div>`;
   // What Smith opened for this job: how many searches and pages, which sites, and which it could not read.
   const coverageCard = (c) => {
     if (!c || (!c.searches && !c.pages)) return "";
@@ -569,7 +568,7 @@
       ? `<div class="card pad col"><div class="row"><span class="tile bare">${svg(IC.fill.wallet, 28)}</span><span class="col grow" style="gap:2px"><span class="t">เติมเครดิต ${baht(pay.amount)}</span>
           <span class="small muted">โอนผ่าน PromptPay แล้วแจ้งทีมงาน</span></span></div>
           <div class="step"><span class="n bare">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""} ใส่หมายเหตุการโอนว่า <b>${esc(pay.ref)}</b> ทีมงานใช้รหัสนี้จับคู่ยอดกับบัญชีของคุณ</span></div>
-          <button class="link-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px;gap:6px">${COPY}คัดลอกเลข PromptPay</button>
+          <button class="link-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px;gap:6px">${svg(IC.bold.copy, 18)}คัดลอกเลข PromptPay</button>
           <div class="step"><span class="n bare">2</span><span>กด "โอนแล้ว" ทีมงานตรวจยอดในบัญชีแล้วเติมให้ภายใน 1 วันทำการ</span></div>
           ${latest?.status === "pending"
             ? `<div class="note warn">${I.clock}<span>รอทีมงานตรวจยอด ${baht(latest.amount)} · ${esc(when(latest.created_at))}</span></div>`

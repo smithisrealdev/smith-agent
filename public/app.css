@@ -215,7 +215,7 @@ details.faq p { padding: 0 0 14px; font-size: 14px; line-height: 1.55; color: va
   animation: drift 14s ease-in-out infinite alternate;
 }
 @keyframes drift { from { transform: translateX(-10px); } to { transform: translateX(10px); } }
-.pill-btn { flex: none; white-space: nowrap; height: 40px; padding: 0 18px; border-radius: 20px; background: var(--soft); color: var(--link); font-family: "Mitr", sans-serif; font-weight: 600; font-size: 15px; }
+.pill-btn { display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap; height: 40px; padding: 0 18px; border-radius: 20px; background: var(--soft); color: var(--link); font-family: "Mitr", sans-serif; font-weight: 600; font-size: 15px; }
 
 /* onboarding scenes: props float around the mascot, each popping in a beat after the last */
 .scene { position: relative; width: 100%; max-width: 340px; padding: 26px 0 22px; }
