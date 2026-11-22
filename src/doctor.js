@@ -18,7 +18,7 @@ export async function checkSetup(env, config, sizes, probe) {
   else {
     const via = config.openrouterKey ? "ผ่าน OpenRouter" : "ตรงจาก Anthropic";
     const r = await probe.claude();
-    add(r.ok ? "ok" : "bad", r.ok ? `Claude ใช้ได้ ${via} (รุ่น ${config.model})${r.left !== undefined ? ` · เครดิต OpenRouter เหลือ $${r.left.toFixed(2)}` : ""}` : `เรียก Claude ${via} ไม่ได้: ${r.error}`);
+    add(r.ok ? "ok" : "bad", r.ok ? `โมเดลใช้ได้ ${via} (รุ่น ${config.model})${r.left !== undefined ? ` · เครดิต OpenRouter เหลือ $${r.left.toFixed(2)}` : ""}` : `เรียกโมเดล ${via} ไม่ได้: ${r.error}`);
     if (r.left !== undefined && r.left < 5) add("warn", `เครดิต OpenRouter เหลือน้อย ($${r.left.toFixed(2)}) เติมก่อนหมด ไม่งั้นงานทุกงานจะล้มเหลว`);
   }
 
@@ -31,8 +31,8 @@ export async function checkSetup(env, config, sizes, probe) {
   if (!config.adminToken) add("warn", "ยังไม่ได้ตั้ง ADMIN_TOKEN จึงดาวน์โหลดสำเนาออกนอกเซิร์ฟเวอร์ไม่ได้ (ดู README)");
 
   // Money and who gets in.
-  const trial = 3 * sizes.M.price;
-  if (config.startCredit > trial) add("warn", `เครดิตเริ่มต้น ฿${config.startCredit} มากกว่า 3 งานกลาง (฿${trial}) ตาม founder/pricing.md ลบ START_CREDIT ใน Environment ถ้าไม่ได้ตั้งใจ`);
+  const trial = sizes.M.price;
+  if (config.startCredit > trial) add("warn", `เครดิตเริ่มต้น ฿${config.startCredit} มากกว่า 1 งานกลาง (฿${trial}) ตาม founder/cfo.md ลบ START_CREDIT ใน Environment ถ้าไม่ได้ตั้งใจ`);
   else add("ok", `เครดิตเริ่มต้น ฿${config.startCredit}`);
   if (!config.inviteCode && !probe.lineLogin) add("bad", "ไม่มี WEB_INVITE_CODE และไม่ได้เปิดเข้าสู่ระบบด้วย LINE ใครเปิดลิงก์ก็ใช้เครดิต Claude ของคุณได้");
   if (!config.maxUsers) add("warn", "ไม่ได้ตั้ง MAX_USERS รหัสเชิญใช้ร่วมกันได้ไม่จำกัดคน");

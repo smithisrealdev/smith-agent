@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkSetup, formatSetup } from "../src/doctor.js";
 
-const SIZES = { S: { price: 5 }, M: { price: 9 }, L: { price: 15 } };
-const good = { model: "claude-opus-5-5", dbPath: "/data/smith.db", adminToken: "x".repeat(32), startCredit: 27, inviteCode: "abc", maxUsers: 30,
+const SIZES = { S: { price: 5 }, M: { price: 12 }, L: { price: 15 } };
+const good = { model: "claude-opus-5-5", dbPath: "/data/smith.db", adminToken: "x".repeat(32), startCredit: 12, inviteCode: "abc", maxUsers: 30,
   dailyCostCap: 500, topup: null, lineToken: "t", lineSecret: "s", publicUrl: "https://smith.example" };
 const probes = (over = {}) => ({ lineLogin: true, claude: async () => ({ ok: true }), line: async () => ({ ok: true, name: "Smith", limit: 300, used: 12 }),
   writable: () => true, backupAgeHours: () => 3, playwright: () => true, ...over });
@@ -26,7 +26,7 @@ test("the mistakes that cost money or data are flagged first", async () => {
   assert.match(text, /✗ ฐานข้อมูลอยู่ที่ data\/smith.db ไม่ใช่ดิสก์ \/data/);
   assert.match(text, /✗ ไม่มี WEB_INVITE_CODE และไม่ได้เปิดเข้าสู่ระบบด้วย LINE/);
   assert.match(text, /✗ LINE token ใช้ไม่ได้: 401/);
-  assert.match(text, /! เครดิตเริ่มต้น ฿200 มากกว่า 3 งานกลาง \(฿27\)/);
+  assert.match(text, /! เครดิตเริ่มต้น ฿200 มากกว่า 1 งานกลาง \(฿12\)/);
   assert.match(text, /! ไม่ได้ตั้ง MAX_USERS/);
   assert.match(text, /มีข้อที่ต้องแก้/);
 });
@@ -39,7 +39,7 @@ test("LINE close to its monthly quota is a warning", async () => {
 test("with an OpenRouter key and no Anthropic key, Claude is checked through OpenRouter and low credit is a warning", async () => {
   const list = await checkSetup({}, { ...good, openrouterKey: "k" }, SIZES, probes({ claude: async () => ({ ok: true, left: 3.2 }) }));
   const text = formatSetup(list);
-  assert.match(text, /✓ Claude ใช้ได้ ผ่าน OpenRouter[\s\S]*เหลือ \$3.20/);
+  assert.match(text, /✓ โมเดลใช้ได้ ผ่าน OpenRouter[\s\S]*เหลือ \$3.20/);
   assert.match(text, /! เครดิต OpenRouter เหลือน้อย/);
   assert.doesNotMatch(text, /ANTHROPIC_API_KEY หรือ/);
 });

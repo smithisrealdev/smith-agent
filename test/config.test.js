@@ -14,13 +14,13 @@ const load = (env) => {
   }
 };
 
-test("prices default to 5 / 9 / 15, the starting credit to three medium jobs, and both can be set in whole baht", () => {
-  assert.deepEqual(load({}), { ok: true, prices: [5, 9, 15], credit: 27, cap: 500, admin: false });
-  assert.equal(load({ PRICE_M: "12" }).credit, 36, "the trial credit follows the medium price");
+test("prices default to 5 / 12 / 15, the starting credit to one medium job, and both can be set in whole baht", () => {
+  assert.deepEqual(load({}), { ok: true, prices: [5, 12, 15], credit: 12, cap: 500, admin: false });
+  assert.equal(load({ PRICE_M: "10" }).credit, 10, "the trial credit follows the medium price");
   assert.deepEqual(load({ PRICE_M: "12", PRICE_L: "20", START_CREDIT: "36", DAILY_COST_CAP: "300" }), { ok: true, prices: [5, 12, 20], credit: 36, cap: 300, admin: false });
   assert.equal(load({ DAILY_COST_CAP: "0" }).cap, 0, "0 turns the daily cap off");
   assert.equal(load({ START_CREDIT: "0" }).credit, 0, "a starting credit of zero is allowed");
-  assert.deepEqual(load({ PRICE_M: "" }).prices, [5, 9, 15], "an empty value is the same as not set");
+  assert.deepEqual(load({ PRICE_M: "" }).prices, [5, 12, 15], "an empty value is the same as not set");
 });
 
 test("a mistyped price or credit stops the server instead of quietly using another number", () => {

@@ -7,3 +7,5 @@
 - Budget and constraints: solo founder. The product is built and deployed as an invite-only test. No payment system yet: testers get ฿200 of free credit. No marketing budget has been set. No revenue, no paying users and no usage data yet.
 
 **อัปเดต 22 พ.ย. 2026 (สิ่งที่เปลี่ยนหลังจากเขียนข้างบน):** ชื่อที่ลูกค้าเห็นคือ "Smith" (`brand.md`) · กลุ่มแรกที่เลือกคือเจ้าของร้านเล็กและฟรีแลนซ์ที่เทียบราคาของชิ้นใหญ่ (`marketing.md` แบบ A) · เครดิตทดลอง 3 งานกลาง (฿27) แทน ฿200 และรับผู้ทดลองไม่เกิน 30 บัญชี · มีทางรับเงินจริงแบบทำมือผ่าน PromptPay (ปิดอยู่จนกว่าจะตั้งค่า) · ยังไม่มีผู้ใช้จริง รายได้ หรือข้อมูลต้นทุนจริงต่องาน
+
+**อัปเดต 22 พ.ย. 2026 (หลังวัดต้นทุนจริง):** ใช้โมเดล GLM-5.3 ผ่าน OpenRouter ต้นทุน ฿4.47 ต่องาน (`trial-2026-11-22-models.txt`) · ราคางานกลางเป็น ฿12 และเครดิตทดลอง 1 งาน (฿12) ตาม `cfo.md` · ยังไม่มีผู้ใช้จริงหรือรายได้

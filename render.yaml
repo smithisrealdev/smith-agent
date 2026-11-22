@@ -20,7 +20,7 @@ services:
       # away (no account, no Claude call). Your own phones count. Raise it when you invite the next group.
       - key: MAX_USERS
         value: "30"
-      # Trial credit: by default three medium jobs (3 x PRICE_M, ฿27 at ฿9), see founder/pricing.md.
+      # Trial credit: by default one medium job (= PRICE_M, ฿12), see founder/cfo.md.
       # - key: START_CREDIT
       #   value: "27"
       # Using OpenRouter credit instead of an Anthropic key: add OPENROUTER_API_KEY under Environment in the dashboard

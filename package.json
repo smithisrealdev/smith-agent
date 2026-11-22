@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/server.js",
-    "test": "node --disable-warning=ExperimentalWarning --test",
+    "test": "node --disable-warning=ExperimentalWarning --env-file=test/test.env --test",
     "stats": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning src/cli.js stats"
   },
   "dependencies": {

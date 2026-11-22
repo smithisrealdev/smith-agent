@@ -254,7 +254,7 @@
 
   // ---------- home
   // One example per buyer group in founder/customer.json, all where the saving is worth the fee (founder/pricing.md:
-  // ฿9 does not pay off on an item under ฿100): big items, trips, flights, and stock for a small shop.
+  // the fee does not pay off on an item under ฿100): big items, trips, flights, and stock for a small shop.
   const TEMPLATES = [
     { label: "เทียบราคาของชิ้นใหญ่", icon: "tag", tone: "cor", text: "เทียบราคา [ชื่อสินค้าและรุ่น] จากหลายร้าน พร้อมลิงก์และโค้ดส่วนลดถ้ามี" },
     { label: "หาตั๋วเครื่องบิน", icon: "plane", tone: "blu", text: "หาตั๋วเครื่องบินไป [เมือง] วันที่ [วัน] กลับวันที่ [วัน] ราคาถูกสุด รวมกระเป๋า" },

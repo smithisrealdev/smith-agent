@@ -26,7 +26,7 @@ export const config = {
   lineToken: env.LINE_CHANNEL_ACCESS_TOKEN || "",
   lineLoginId: env.LINE_LOGIN_CHANNEL_ID || "", // with its secret and PUBLIC_URL, the web app requires signing in with LINE
   lineLoginSecret: env.LINE_LOGIN_CHANNEL_SECRET || "",
-  model: env.SMITH_MODEL || "claude-opus-5-5",
+  model: env.SMITH_MODEL || (env.OPENROUTER_API_KEY ? "z-ai/glm-5.3" : "claude-opus-5-5"), // GLM-5.3: cheapest model that passed the trial (founder/trial-2026-11-22-models.txt)
   // With an OpenRouter key, Claude is reached through OpenRouter's Anthropic-format endpoint (same tools, same
   // answers, paid from OpenRouter credit). Without one, straight from Anthropic with ANTHROPIC_API_KEY.
   openrouterKey: env.OPENROUTER_API_KEY || "",
@@ -46,15 +46,15 @@ export const config = {
 // The prices can be changed with PRICE_S, PRICE_M and PRICE_L (whole baht); the work budget cannot.
 export const SIZES = {
   S: { price: whole("PRICE_S", 5), minutes: 1, searches: 3, fetches: 2 },
-  M: { price: whole("PRICE_M", 9), minutes: 3, searches: 6, fetches: 4 },
+  M: { price: whole("PRICE_M", 12), minutes: 3, searches: 6, fetches: 4 },
   L: { price: whole("PRICE_L", 15), minutes: 5, searches: 10, fetches: 6 },
 };
 // A bigger job must never cost less than a smaller one.
 if (!(SIZES.S.price <= SIZES.M.price && SIZES.M.price <= SIZES.L.price)) {
   throw new Error(`PRICE_S, PRICE_M and PRICE_L must not go down with size, got ${SIZES.S.price} / ${SIZES.M.price} / ${SIZES.L.price}`);
 }
-// Trial credit: three medium jobs by default (founder/pricing.md), so it follows the price when PRICE_M changes.
-config.startCredit = whole("START_CREDIT", 3 * SIZES.M.price, 0);
+// Trial credit: one medium job by default (founder/cfo.md: three free jobs cover a buyer's whole first month), so it follows PRICE_M.
+config.startCredit = whole("START_CREDIT", SIZES.M.price, 0);
 
 // Auto-refund rules from the design: within 24 hours of the result, 3 times a month; the rest go to manual review.
 // "The price is not what the page shows" is Smith's own mistake, so it has its own, larger allowance.
