@@ -364,7 +364,7 @@
     return `${topbar("ตรวจก่อนเริ่ม")}
       <div class="bubble pre">${esc(j.text)}</div>
       <div class="plan"><div class="mitr" style="font-weight:600;font-size:17px">Smith จะทำแบบนี้</div>
-        ${j.steps.map((s, i) => `<div class="step"><span class="n">${i + 1}</span><span>${esc(s)}</span></div>`).join("")}
+        ${j.steps.map((s, i) => `<div class="step"><span class="n bare">${i + 1}</span><span>${esc(s)}</span></div>`).join("")}
         <div class="small muted">Smith จะไม่จ่ายเงิน ไม่ล็อกอิน และไม่จองแทนคุณ</div></div>
       <div class="price-card"><div class="col" style="gap:0"><div class="mitr" style="font-weight:600;font-size:17px">ราคางานนี้</div><div class="big">${baht(j.price)}</div></div>
         <div class="checks grow"><span>${I.check}จ่ายไม่เกินนี้</span><span>${I.check}ไม่สำเร็จ ไม่คิดเงิน</span><span>${I.check}ประมาณ ${j.minutes} นาที</span></div></div>
