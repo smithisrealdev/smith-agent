@@ -113,23 +113,32 @@
   const topbar = (title, back = "#/", right = '<span class="gap44"></span>') =>
     `<div class="topbar"><a class="icon-btn" href="${back}" aria-label="กลับ">${I.back}</a><div class="title">${esc(title)}</div>${right}</div>`;
   const STATUS = {
-    quoted: ["รอเริ่ม", "grey", "clock"],
-    running: ["กำลังทำ", "", "bolt"],
-    done: ["เสร็จแล้ว", "good", "check"],
-    failed: ["ไม่สำเร็จ ไม่คิดเงิน", "bad", "x"],
-    refunded: ["คืนเงินแล้ว", "warn", "refund"],
-    refund_review: ["รอตรวจคืนเงิน", "warn", "refund"],
-    cancelled: ["ยกเลิกแล้ว", "grey", "x"],
-    rejected: ["Smith ทำไม่ได้", "grey", "x"],
+    quoted: ["รอเริ่ม", "grey"],
+    running: ["กำลังทำ", ""],
+    done: ["เสร็จแล้ว", "good"],
+    failed: ["ไม่สำเร็จ ไม่คิดเงิน", "bad"],
+    refunded: ["คืนเงินแล้ว", "warn"],
+    refund_review: ["รอตรวจคืนเงิน", "warn"],
+    cancelled: ["ยกเลิกแล้ว", "grey"],
+    rejected: ["Smith ทำไม่ได้", "grey"],
   };
+  // What kind of job it is, from the words in it: the icon says the kind, its colour says the status. First match wins,
+  // so a cheap flight is a flight and a cheap restaurant is a restaurant, not a price check.
+  const KINDS = [
+    ["plane", /ตั๋ว|เที่ยวบิน|เครื่องบิน|สายการบิน|บินไป|ที่พัก|โรงแรม|ทริป|เที่ยว|flight|hotel/i],
+    ["food", /ร้านอาหาร|อาหาร|ร้านอร่อย|คาเฟ่|กาแฟ|ของกิน|บุฟเฟ่ต์|ร้านกิน|ร้าน.{0,8}(กิน|อร่อย)/i],
+    ["doc", /ข่าว|สรุป|บทความ|อ่าน|รีวิว/i],
+    ["tag", /ราคา|เทียบ|ซื้อ|ถูก|โค้ด|ส่วนลด|โปร|shopee|lazada/i],
+  ];
+  const kindOf = (text) => KINDS.find(([, re]) => re.test(text || ""))?.[0] || "sparkle";
   const jobRow = (j) => {
-    const [label, tone, ic] = STATUS[j.status] || ["", "grey", "clock"];
+    const [label, tone] = STATUS[j.status] || ["", "grey"];
     const href = j.status === "quoted" || j.status === "rejected" ? `#/quote/${j.id}` : `#/job/${j.id}`;
     const charged = ["done", "refund_review", "running"].includes(j.status);
     const top = j.options?.[0];
     // A finished job shows what it found: the first option's picture, or the logo of the site it came from.
     const art = j.status !== "done" ? "" : picture(top) ? `<img class="logo photo" src="${esc(picture(top))}" alt="" loading="lazy">` : logoImg(brandOf(top) || hostOf(j.sources?.[0]?.url));
-    return `<a class="item" href="${href}"><span class="tile ${tone}">${D[ic]}${art}</span>
+    return `<a class="item" href="${href}"><span class="tile bare ${tone}">${svg(IC.fill[kindOf(`${j.title} ${j.text}`)], 28)}${art}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(j.title || j.text)}</span>
       <span class="s">${esc(when(j.createdAt))} · ${label}${j.status === "running" ? ` ${DOTS}` : ""}</span></span>
       ${charged ? `<span class="money">${baht(j.price)}</span>` : ""}</a>`;

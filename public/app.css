@@ -104,6 +104,7 @@ a.item:active, button.item:active, .source:active, .link-btn:active { opacity: .
 .tile.bad { background: var(--rsoft); color: var(--rtxt); }
 .tile.warn { background: var(--ysoft); color: var(--ytxt); }
 .tile.grey { background: var(--field); color: var(--mut); }
+.tile.bare { background: none; } /* a job in a list: the icon alone, coloured by its status */
 .money { font-family: "Mitr", sans-serif; font-weight: 600; font-size: 16px; white-space: nowrap; }
 .plus { color: var(--gtxt); }
 
