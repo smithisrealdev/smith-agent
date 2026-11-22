@@ -551,7 +551,9 @@
   const ledgerRow = (e) => {
     const plus = e.amount > 0;
     const label = e.kind === "hold" ? e.title || "งาน" : e.title ? `${KIND[e.kind]}: ${e.title}` : KIND[e.kind] || e.kind;
-    return `<div class="item"><span class="tile ${plus ? "good" : ""}">${plus ? D.refund : D.receipt}</span>
+    // The icon says what the line is, the way job lists do: the job's kind for a job, a wallet for credit in. Green when money comes in.
+    const icon = IC.fill[e.title ? kindOf(e.title) : "wallet"];
+    return `<div class="item"><span class="tile bare ${plus ? "good" : ""}">${svg(icon, 28)}</span>
       <span class="grow col" style="gap:2px;min-width:0"><span class="t">${esc(label)}</span><span class="s">${esc(when(e.created_at))}</span></span>
       <span class="money ${plus ? "plus" : ""}">${plus ? "+" : "−"}${baht(Math.abs(e.amount))}</span></div>`;
   };
