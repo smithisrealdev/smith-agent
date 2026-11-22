@@ -123,7 +123,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
       return run("UPDATE jobs SET status = 'cancelled' WHERE id = ? AND user_id = ? AND status = 'quoted'", jobId, userId).changes === 1;
     },
 
-    // Success keeps the hold as the charge; failure gives it back ("no charge when it fails").
+    // Success keeps the hold as the charge; failure gives it back ("no charge when it fails"), and so does the user taking over.
     finish(jobId, r) {
       return tx(() => {
         const j = job(jobId);
@@ -132,7 +132,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         run(
           `UPDATE jobs SET status = ?, finished_at = ?, run_cost = ?, input_tokens = ?, output_tokens = ?, searches = ?,
              answer = ?, sources = ?, options = ?, codes = ?, coverage = ?, evidence = ?, error = ? WHERE id = ?`,
-          r.ok ? "done" : "failed", iso(), u.cost || 0, u.input_tokens || 0, u.output_tokens || 0, u.searches || 0,
+          r.ok ? "done" : r.error === "taken_over" ? "cancelled" : "failed", iso(), u.cost || 0, u.input_tokens || 0, u.output_tokens || 0, u.searches || 0,
           r.answer || "", JSON.stringify(r.sources || []), JSON.stringify(r.options || []), JSON.stringify(r.codes || []),
           r.coverage ? JSON.stringify(r.coverage) : "", r.evidence || "", r.error || "", jobId,
         );

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { openDb, makeStore } from "../src/db.js";
 import { createRunner } from "../src/runner.js";
@@ -389,4 +389,46 @@ test("the service worker is served as JavaScript and is never kept by a cache, s
   assert.equal(res.headers.get("cache-control"), "no-cache");
   assert.match(await res.text(), /smith-shell-v1/);
   s.close();
+});
+
+test("watching a job shows a picture of the page it reads, and taking over stops it at no charge", async (t) => {
+  const evidenceDir = mkdtempSync(join(tmpdir(), "smith-"));
+  const store = makeStore(openDb(":memory:"), { startCredit: 20 });
+  const screenshot = async (url, file, viewport) => {
+    assert.equal(viewport?.width, 412, "pictured at phone width");
+    if (url.includes("c.example")) return false; // a page that cannot be pictured, such as a bot wall
+    writeFileSync(file, "png");
+    return true;
+  };
+  const runTask = (_job, _client, _today, onProgress, signal) =>
+    new Promise((_, reject) => {
+      onProgress('ค้นหา "x"');
+      onProgress("เปิดอ่าน b.example", "https://b.example/p");
+      onProgress("เปิดอ่าน c.example", "https://c.example/q");
+      signal.addEventListener("abort", () => reject(new Error("aborted")));
+    });
+  const runner = createRunner({ store, runTask, screenshot, evidenceDir, log: { error() {} } });
+  const handle = createWeb({ store, quote: async () => QUOTE, runner, evidenceDir, log: { error() {} } });
+  const server = createServer(async (req, res) => (await handle(req, res)) || res.writeHead(404).end());
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (method, path) => fetch(base + path, { method, headers: { Authorization: `Bearer ${A}` } }).then((r) => r.json());
+
+  const { job: quoted } = await call("POST", "/api/quote").catch(() => ({})); // no body: refused
+  assert.equal(quoted, undefined);
+  const q = await fetch(base + "/api/quote", { method: "POST", headers: { Authorization: `Bearer ${A}`, "Content-Type": "application/json" }, body: JSON.stringify({ text: "x" }) }).then((r) => r.json());
+  await call("POST", `/api/jobs/${q.job.id}/start`);
+  const live = await waitFor(async () => (await call("GET", `/api/jobs/${q.job.id}`)).job.live?.frame && (await call("GET", `/api/jobs/${q.job.id}`)).job.live);
+  assert.equal(live.page, "https://c.example/q");
+  assert.equal(live.frame.url, "https://b.example/p", "the picture stays on the last page that could be pictured");
+  assert.equal((await fetch(base + live.frame.image)).status, 200, "the picture is served");
+
+  assert.deepEqual(await call("POST", `/api/jobs/${q.job.id}/takeover`), { ok: true, url: "https://b.example/p", credit: 20 }, "the hold comes back, and the page opened is the one in the picture");
+  const job = (await call("GET", `/api/jobs/${q.job.id}`)).job;
+  assert.equal(job.status, "cancelled");
+  assert.equal(job.live, undefined);
+  assert.deepEqual(job.sources, [{ title: "b.example", url: "https://b.example/p" }], "the page Smith was on, to open it again");
+  assert.ok(!existsSync(join(evidenceDir, basename(live.frame.image))), "live pictures are removed when the job ends");
+  assert.equal((await call("POST", `/api/jobs/${q.job.id}/takeover`)).ok, false, "a job that is not running cannot be stopped");
 });

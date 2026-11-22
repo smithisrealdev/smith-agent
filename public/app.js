@@ -404,9 +404,53 @@
     }
     if (document.getElementById("live")) fresh = true; // the job just finished while the user watched: let the result arrive
     if (job.status === "failed") return render(failedView(job, credit));
-    if (job.status === "cancelled") return render(`${topbar(job.title)}<div class="center"><div class="mascot">${M.calm || ""}</div><h1 style="font-size:24px">ยกเลิกงานนี้แล้ว</h1><p class="muted">ไม่คิดเงิน</p></div>`);
+    if (job.status === "cancelled") return render(cancelledView(job));
     render(doneView(job, credit));
   }
+  // Cancelled before it started, or stopped by "ให้ฉันทำต่อเอง" (then it has a start time, and the page Smith was on).
+  const cancelledView = (j) => {
+    const page = /^https?:\/\//.test(j.sources[0]?.url) ? j.sources[0].url : "";
+    return `${topbar(j.title)}<div class="center"><div class="mascot">${M.calm || ""}</div>
+        <h1 style="font-size:24px">${j.startedAt ? "Smith หยุดแล้ว ทำต่อได้เลย" : "ยกเลิกงานนี้แล้ว"}</h1><p class="muted">ไม่คิดเงิน</p></div>
+      ${page ? `<div class="grow"></div><a class="btn" href="${esc(page)}" target="_blank" rel="noopener noreferrer">เปิดหน้าที่ Smith เปิดค้างไว้ ${I.external}</a>` : ""}`;
+  };
+
+  // ---------- watching a running job (the "LiveView" board): the page Smith read last, what it is doing now, and a way to take over
+  async function liveScreen(id) {
+    const r = await api("GET", `/api/jobs/${id}`);
+    if (!r.ok) return render(notFound());
+    const { job } = r.data;
+    state.job = job;
+    if (job.status !== "running") return go(`#/job/${id}`);
+    const box = document.getElementById("watch");
+    const sig = watchSig(job);
+    if (box?.dataset.job !== String(id)) render(liveView(job));
+    else if (box.dataset.sig !== sig) {
+      box.innerHTML = watchParts(job); // only when something changed, so the picture does not flicker
+      box.dataset.sig = sig;
+    }
+    return poll(() => liveScreen(id), 2000);
+  }
+  const watchSig = (j) => `${j.progress.length}|${j.live?.frame?.image || ""}|${j.live?.page || ""}`;
+  const watchParts = (j) => {
+    const now = j.progress.at(-1);
+    const shot = j.live?.frame;
+    const url = shot?.url || j.live?.page || ""; // the address bar names the page in the picture; before the first picture, the page being opened
+    const searches = j.progress.filter((p) => p.text.startsWith("ค้นหา")).length;
+    const pages = j.progress.filter((p) => p.host).length;
+    const doing = !now ? "เริ่มงาน" : now.host ? `อ่าน ${now.host}` : now.text.startsWith("ค้นหา") ? "ค้นหา" : now.text;
+    return `<div class="browser"><div class="bar">${svg(IC.bold.lock, 14)}<span class="url">${esc(url ? url.replace(/^https?:\/\/(www\.)?/, "") : "กำลังเปิดเว็บ")}</span></div>
+        ${shot ? `<img class="page" src="${esc(shot.image)}" alt="หน้าเว็บ ${esc(hostOf(shot.url))} ที่ Smith เปิดอ่าน">` : `<div class="page empty"><div class="mascot">${M.work || ""}</div></div>`}</div>
+      <p class="live-now" role="status">${esc(now?.text || "Smith กำลังเริ่มงาน")} ${DOTS}</p>
+      <div class="live-chips">${searches ? `<span>${svg(IC.bold.check, 14)}ค้นหา ${searches} ครั้ง</span>` : ""}${pages ? `<span>${svg(IC.bold.check, 14)}เปิดอ่าน ${pages} เว็บ</span>` : ""}<span class="now"><i></i>${esc(doing)}</span></div>`;
+  };
+  const HAND = '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V4.5a1.5 1.5 0 013 0V9M11 9V3.5a1.5 1.5 0 013 0V10M14 10V6a1.5 1.5 0 013 0v6a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3 12a1.5 1.5 0 012.5-1.7L8 13"/></svg>';
+  const liveView = (j) => `<div class="topbar"><a class="icon-btn" href="#/job/${j.id}" aria-label="กลับ">${I.back}</a>
+        <div class="title">Smith กำลังทำ <span class="onair"><i></i>สด</span></div><span class="gap44"></span></div>
+      <div class="slot" id="watch" data-job="${j.id}" data-sig="${watchSig(j)}">${watchParts(j)}</div>
+      <div class="grow"></div>
+      <button class="btn" data-act="takeover" data-arg="${j.id}">${HAND}ให้ฉันทำต่อเอง</button>
+      <p class="muted live-foot">เข้าไปทำเองเมื่อไร Smith หยุดทันที และไม่คิดเงินงานนี้</p>`;
   const elapsed = (j) => `${I.clock} ผ่านไป ${duration(j.startedAt)} · ประมาณ ${j.minutes} นาที`;
   // The agent's last few steps, newest last; steps after `seen` fade in. Before the first one arrives, the agreed plan.
   const liveSteps = (j, seen = j.progress.length) => {
@@ -424,6 +468,7 @@
         <span class="pill" id="elapsed">${elapsed(j)}</span></div>
       <div class="plan" id="live" data-job="${j.id}" data-n="${j.progress.length}">${liveSteps(j)}</div>
       <p class="sr" aria-live="polite" id="live-now">${esc(j.progress.at(-1)?.text || "")}</p>
+      <a class="live-card" href="#/live/${j.id}"><span class="tile">${D.image}</span><span class="grow col"><span class="t">ดู Smith ทำงานสด</span><span class="s">เห็นหน้าเว็บที่ Smith กำลังเปิดอ่าน</span></span>${I.chev}</a>
       <div class="note">${I.info}<span>ปิดแอปได้เลย งานยังทำต่อ กลับมาดูผลได้ที่หน้าแรก</span></div>
       <div class="grow"></div>
       <div class="row" style="justify-content:space-between;padding:0 4px"><span class="muted">ราคาที่ตกลงไว้</span><span class="money">${baht(j.price)}</span></div>
@@ -735,6 +780,13 @@
       if (r.status === 503) return toast(NO[503]), route();
       go(`#/job/${id}`);
     },
+    async takeover(id, btn) {
+      const page = state.job?.live?.frame?.url || state.job?.live?.page || ""; // the page the address bar names
+      if (/^https?:\/\//.test(page)) window.open(page, "_blank", "noopener"); // inside the tap, or the phone blocks it
+      busy(btn, "กำลังหยุด");
+      await api("POST", `/api/jobs/${id}/takeover`); // answers once the job is settled
+      go(`#/job/${id}`);
+    },
     edit() {
       state.draft = state.job?.text || "";
       saved.set("draft", state.draft);
@@ -985,6 +1037,7 @@
     [/^#\/terms$/, terms],
     [/^#\/quote\/(\d+)$/, quoteScreen],
     [/^#\/job\/(\d+)$/, jobScreen],
+    [/^#\/live\/(\d+)$/, liveScreen],
     [/^#\/refund\/(\d+)$/, refundScreen],
     [/^#\/history$/, history],
     [/^#\/wallet$/, wallet],
@@ -998,6 +1051,7 @@
     window.speechSynthesis?.cancel(); // leaving a screen stops it being read aloud
     clearTimeout(poller);
     const hash = location.hash;
+    document.documentElement.classList.toggle("watching", /^#\/live\//.test(hash)); // the live screen is dark in either theme
     if (!saved.get("consent") && !/^#\/(welcome|consent|help|invite|privacy|terms|login|full)/.test(hash)) return go("#/welcome");
     const hit = ROUTES.find(([re]) => re.test(hash));
     if (!hit) return go("#/");

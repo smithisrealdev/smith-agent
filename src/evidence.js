@@ -52,7 +52,7 @@ export async function reachesPublicHost(raw, resolve = lookup) {
 // Screenshot one page as evidence. Playwright is optional: without it the result goes out with links only.
 // shortcut: Chromium resolves each host again after our check, so a DNS answer that flips in between (rebinding)
 // can still slip through; upgrade by running the browser behind an egress proxy that blocks private ranges.
-export async function screenshot(url, file) {
+export async function screenshot(url, file, viewport = { width: 1000, height: 1300 }) {
   if (!(await reachesPublicHost(url))) return false;
   let chromium;
   try {
@@ -75,9 +75,10 @@ export async function screenshot(url, file) {
   let browser;
   try {
     browser = await chromium.launch(); // throws when the Chromium binary is not installed
-    const page = await browser.newPage({ viewport: { width: 1000, height: 1300 }, locale: "th-TH" });
+    const page = await browser.newPage({ viewport, locale: "th-TH" });
     await page.route("**/*", async (route) => ((await check(route.request().url())) ? route.continue() : route.abort()));
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+    const res = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+    if (res && !res.ok()) return false; // a bot wall ("you have been blocked", 403) or an error page is no picture of the page
     await page.waitForTimeout(1500);
     await page.screenshot({ path: file });
     return true;

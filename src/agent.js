@@ -183,7 +183,7 @@ export function webTools(model, size) {
   ];
 }
 
-export async function runTask(job, client = getClient(), today = new Date(), onProgress = () => {}) {
+export async function runTask(job, client = getClient(), today = new Date(), onProgress = () => {}, signal = undefined) {
   const size = SIZES[job.size] || SIZES.M;
   const date = today.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
   const steps = JSON.parse(job.steps || "[]").map((s, i) => `${i + 1}. ${s}`).join("\n");
@@ -206,7 +206,7 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
   for (let turn = 0; turn < 5; turn++) {
     // Streamed so each search and page read can be shown while the job runs. The report tool's input stays
     // buffered (no eager_input_streaming): it is small, and buffering keeps the strict schema check.
-    const stream = client.beta.messages.stream(params);
+    const stream = client.beta.messages.stream(params, { signal }); // signal: the user took over, stop now
     // OpenRouter states the real charge in the stream's message_delta; the SDK drops it from the final message, so take it here.
     let charged;
     stream.on("streamEvent", (e) => {

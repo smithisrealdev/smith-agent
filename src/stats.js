@@ -6,7 +6,7 @@ export function stats(db, now = new Date()) {
   const count = (status) => jobs.filter((j) => j.status === status).length;
   const sum = (list, f) => list.reduce((s, j) => s + f(j), 0);
   const started = jobs.filter((j) => j.started_at);
-  const finished = started.filter((j) => j.finished_at && j.error !== "restart");
+  const finished = started.filter((j) => j.finished_at && !["restart", "taken_over"].includes(j.error)); // neither is Smith failing
   const succeeded = finished.filter((j) => ["done", "refunded", "refund_review"].includes(j.status));
   const charged = jobs.filter((j) => ["done", "refund_review"].includes(j.status));
   const revenue = sum(charged, (j) => j.price);

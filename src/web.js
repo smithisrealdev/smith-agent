@@ -78,7 +78,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
   };
   const credit = (userId) => store.user(userId).credit;
   const closed = (userId) => maxUsers > 0 && !store.known(userId) && store.userCount() >= maxUsers; // the test round is full
-  const view = (j) => ({ ...jobView(j), progress: j.status === "running" ? runner.progress(j.id) : [] });
+  const view = (j) => (j.status === "running" ? { ...jobView(j), progress: runner.progress(j.id), live: runner.watching(j.id) } : { ...jobView(j), progress: [] });
   const ownJob = (userId, id) => {
     const j = store.job(id);
     return j && j.user_id === userId ? j : null;
@@ -96,7 +96,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
   };
 
   async function api(req, res, path, userId) {
-    const m = /^\/api\/jobs\/(\d+)(?:\/(start|cancel|refund))?$/.exec(path);
+    const m = /^\/api\/jobs\/(\d+)(?:\/(start|cancel|takeover|refund))?$/.exec(path);
     const id = m && Number(m[1]);
 
     if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null, prices: { S: SIZES.S.price, M: SIZES.M.price, L: SIZES.L.price }, topup: topup && { ...topup, ref: payRef(userId) } });
@@ -140,10 +140,15 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
         const r = store.start(userId, id);
         if (!r.ok) return json(res, 409, { error: r.reason, credit: credit(userId) });
         // The app polls the job for the result; LINE users also get it in their chat.
-        runner.run(r.job).then((done) => notify?.(done.job, done.r)).catch((err) => log.error("job failed", id, err));
+        // A user who took over is in the app already: no LINE message about it.
+        runner.run(r.job).then((done) => done.r.error !== "taken_over" && notify?.(done.job, done.r)).catch((err) => log.error("job failed", id, err));
         return json(res, 200, { job: jobView(r.job), credit: credit(userId) });
       }
       if (m[2] === "cancel") return json(res, 200, { ok: store.cancel(userId, id) });
+      if (m[2] === "takeover") {
+        const page = await runner.stop(id);
+        return json(res, 200, { ok: page !== null, url: page || "", credit: credit(userId) });
+      }
       const { reasons = [], note = "" } = await body(req);
       const why = [...(Array.isArray(reasons) ? reasons : []), note].map((s) => String(s).trim()).filter(Boolean).join(" · ").slice(0, 500);
       const r = store.refund(userId, id, why, { price: Array.isArray(reasons) && reasons.includes(REFUND.priceReason) });
