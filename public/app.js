@@ -73,6 +73,14 @@
   let gen = 0; // bumped on every route change: loads and polls from an older screen stop instead of painting
 
   class InviteNeeded extends Error {}
+  // The service worker saves what the user opened and serves it when there is no connection. The bar says so, so old numbers are not read as new.
+  function offlineBar(on) {
+    let bar = document.getElementById("offline-bar");
+    if (!on) return bar?.remove();
+    if (bar) return;
+    document.body.insertAdjacentHTML("afterbegin", '<div id="offline-bar" role="status">ออฟไลน์ แสดงข้อมูลที่เคยเปิดไว้ อาจไม่ใช่ข้อมูลล่าสุด</div>');
+  }
+  const forgetSaved = () => window.caches?.keys().then((names) => Promise.all(names.filter((n) => n.startsWith("smith-data")).map((n) => caches.delete(n)))).catch(() => {}); // the next person on this phone must not see these jobs
   class LoginNeeded extends Error {}
   class RoundFull extends Error {} // the server takes no new accounts in this test round
   class Stale extends Error {} // the user moved to another screen while this loaded
@@ -90,6 +98,7 @@
     }
     const data = await res.json().catch(() => ({}));
     if (method === "GET" && gen !== at) throw new Stale(); // a late load must not paint over the newer screen
+    if (method === "GET") offlineBar(res.headers.get("X-Smith-Offline") === "1"); // the service worker answered from what was opened before
     if (res.status === 403 && data.error === "invite") throw new InviteNeeded();
     if (res.status === 401 && data.error === "login") throw new LoginNeeded();
     if (res.status === 403 && data.error === "full") throw new RoundFull();
@@ -778,6 +787,7 @@
       busy(btn, "กำลังลบ");
       const r = await api("DELETE", "/api/me");
       if (!r.ok) return toast("ลบไม่สำเร็จ ลองใหม่อีกครั้ง"), route();
+      await forgetSaved();
       token = newToken();
       ["token", "consent", "draft"].forEach((k) => saved.set(k, null));
       saved.set("token", token);
@@ -795,6 +805,7 @@
     async logout(_, btn) {
       busy(btn);
       await api("POST", "/api/logout");
+      await forgetSaved();
       token = newToken(); // a fresh device token: the old one stays unlinked on the server
       saved.set("token", token);
       go("#/login");
@@ -1018,6 +1029,8 @@
   }
   window.addEventListener("keydown", (e) => e.key === "Escape" && closeSheet());
   window.addEventListener("hashchange", route);
+  window.addEventListener("online", () => document.getElementById("offline-bar") && route()); // the connection is back: replace what was saved
+  if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {})); // the app works without it
   window.addEventListener("pageshow", (e) => e.persisted && route()); // back from LINE Login: drop the busy button
   route();
 })();

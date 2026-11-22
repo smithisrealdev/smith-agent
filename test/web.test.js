@@ -380,3 +380,13 @@ test("from the app, a new top-up and a refund sent to review alert the founder; 
   assert.equal(told.length, 1);
   assert.match(told[0], /มีคำขอเติมเครดิต ฿50/);
 });
+
+test("the service worker is served as JavaScript and is never kept by a cache, so a new version is always picked up", async () => {
+  const s = await start();
+  const res = await fetch(s.base + "/sw.js");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /javascript/);
+  assert.equal(res.headers.get("cache-control"), "no-cache");
+  assert.match(await res.text(), /smith-shell-v1/);
+  s.close();
+});
