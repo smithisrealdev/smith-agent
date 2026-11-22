@@ -1,7 +1,12 @@
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { SIZES, REFUND } from "./config.js";
+
+// A short code a user puts in the PromptPay transfer note, so staff can tell whose transfer is whose in the bank app.
+// The same for a user every time; 5 hex digits keep a clash unlikely in a test round of a few dozen people.
+export const payRef = (userId) => `SM${createHash("sha256").update(String(userId)).digest("hex").slice(0, 5).toUpperCase()}`;
 
 export function openDb(path) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });

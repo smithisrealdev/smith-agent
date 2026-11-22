@@ -324,7 +324,7 @@ test("out of credit in LINE: the reply says where to pay; \"โอนแล้�
   await bot.handle(say("U1", "หาตั๋ว"));
   const id = store.jobsOf("U1")[0].id;
   await bot.handle(tap("U1", `start:${id}`));
-  assert.match(lastText(sent), /เครดิตไม่พอ[\s\S]*PromptPay 0812345678 \(สมชาย\)[\s\S]*พิมพ์ "โอนแล้ว"/);
+  assert.match(lastText(sent), /เครดิตไม่พอ[\s\S]*PromptPay 0812345678 \(สมชาย\)[\s\S]*หมายเหตุการโอนว่า SM[0-9A-F]{5}[\s\S]*พิมพ์ "โอนแล้ว"/);
   await bot.handle(say("U1", "โอนแล้ว"));
   await bot.handle(say("U1", "โอนแล้ว"));
   assert.match(lastText(sent), /รับแจ้งแล้ว/);

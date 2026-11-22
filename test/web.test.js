@@ -356,7 +356,10 @@ test("PromptPay top-up: off unless set; the app shows where to pay; one request 
   assert.equal((await off.call(A, "POST", "/api/topup", {})).status, 404);
   const s = await start({ topup: { promptpay: "0812345678", name: "สมชาย ใจดี", amount: 50 } });
   t.after(s.close);
-  assert.deepEqual((await s.call(A, "GET", "/api/me")).body.topup, { promptpay: "0812345678", name: "สมชาย ใจดี", amount: 50 });
+  const pay = (await s.call(A, "GET", "/api/me")).body.topup;
+  assert.deepEqual({ ...pay, ref: undefined }, { promptpay: "0812345678", name: "สมชาย ใจดี", amount: 50, ref: undefined });
+  assert.match(pay.ref, /^SM[0-9A-F]{5}$/, "a transfer-note code so staff can match the bank entry to this account");
+  assert.notEqual((await s.call(B, "GET", "/api/me")).body.topup.ref, pay.ref);
   const first = await s.call(A, "POST", "/api/topup", { amount: 5000 });
   assert.equal(first.status, 200);
   assert.equal(first.body.topup.amount, 50, "what the client sends is ignored");

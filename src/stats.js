@@ -33,7 +33,8 @@ export function stats(db, now = new Date()) {
   // LINE OA plan stops delivering after its monthly quota. Counted from the 1st of this month, Thai time.
   const bkk = new Date(now.getTime() + 7 * 3600e3);
   const monthStart = new Date(Date.UTC(bkk.getUTCFullYear(), bkk.getUTCMonth(), 1) - 7 * 3600e3).toISOString();
-  const linePushes = jobs.filter((j) => !j.user_id.startsWith("web:") && j.finished_at && j.finished_at >= monthStart).length;
+  const linePushes = jobs.filter((j) => !j.user_id.startsWith("web:") && j.finished_at && j.finished_at >= monthStart).length
+    + db.prepare("SELECT COUNT(*) AS n FROM topups WHERE user_id NOT LIKE 'web:%' AND decided_at >= ?").get(monthStart).n; // the CLI tells LINE users when it decides a top-up
   const seconds = finished.map((j) => (Date.parse(j.finished_at) - Date.parse(j.started_at)) / 1000).sort((a, b) => a - b);
   return {
     quotes: jobs.length,

@@ -310,6 +310,7 @@
       ? recent.map((j) => `<a class="mini-row" href="${["quoted", "rejected"].includes(j.status) ? `#/quote/${j.id}` : `#/job/${j.id}`}">${kindIcon(j)}<span class="clamp1">${esc(j.title || j.text)}</span></a>`).join("")
       : '<span class="s">ยังไม่มีงานอื่น ลองแตะตัวอย่างด้านล่าง</span>';
     return {
+      "home-pill": `<a class="jobs-pill" href="#/history"><span class="dot${running ? " on" : ""}" aria-hidden="true"></span>งานของฉัน</a>`,
       "home-credit": `<a class="credit-chip" href="#/wallet" aria-label="เครดิต ${baht(state.me.credit)}">${I.wallet} ${baht(state.me.credit)}</a>`,
       "home-grid": `<div class="bento">
         ${now}
@@ -323,9 +324,7 @@
   }
   function homeView() {
     const slot = Object.fromEntries(Object.entries(homeParts()).map(([id, html]) => [id, `<div class="slot" id="${id}">${html}</div>`]));
-    const running = state.jobs.some((j) => j.status === "running");
-    return `<div class="topbar"><a class="icon-btn" href="#/settings" aria-label="ตั้งค่า">${I.person}</a>
-        <a class="jobs-pill" href="#/history"><span class="dot${running ? " on" : ""}" aria-hidden="true"></span>งานของฉัน</a>${slot["home-credit"]}</div>
+    return `<div class="topbar"><a class="icon-btn" href="#/settings" aria-label="ตั้งค่า">${I.person}</a>${slot["home-pill"]}${slot["home-credit"]}</div>
       <h1 class="sr">Smith</h1>
       ${slot["home-grid"]}
       <div class="grow"></div>
@@ -560,12 +559,13 @@
     const [ledger, me, list] = await Promise.all([api("GET", "/api/ledger"), api("GET", "/api/me"), api("GET", "/api/jobs")]);
     const { credit, entries = [], topups = [] } = ledger.data;
     const pay = me.data.topup; // where to transfer, when the server takes PromptPay top-ups
-    const waitingJob = (list.data.jobs || []).find((j) => j.status === "quoted"); // a quote that may be waiting for this credit
+    // A recent quote not started yet: the way back to it after topping up. Older quotes are left alone.
+    const waitingJob = (list.data.jobs || []).find((j) => j.status === "quoted" && Date.now() - Date.parse(j.createdAt) < 7 * 86400e3);
     const latest = topups[0];
     const topupCard = pay
       ? `<div class="card pad col"><div class="row"><span class="tile">${D.wallet}</span><span class="col grow" style="gap:2px"><span class="t">เติมเครดิต ${baht(pay.amount)}</span>
           <span class="small muted">โอนผ่าน PromptPay แล้วแจ้งทีมงาน</span></span></div>
-          <div class="step"><span class="n">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""}</span></div>
+          <div class="step"><span class="n">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""} ใส่หมายเหตุการโอนว่า <b>${esc(pay.ref)}</b> ทีมงานใช้รหัสนี้จับคู่ยอดกับบัญชีของคุณ</span></div>
           <button class="pill-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px">คัดลอกเลข PromptPay</button>
           <div class="step"><span class="n">2</span><span>กด "โอนแล้ว" ทีมงานตรวจยอดในบัญชีแล้วเติมให้ภายใน 1 วันทำการ</span></div>
           ${latest?.status === "pending"

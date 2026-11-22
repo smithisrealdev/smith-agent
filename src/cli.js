@@ -10,7 +10,7 @@
 //   node src/cli.js topups                    PromptPay top-ups waiting: check each in your bank app first
 //   node src/cli.js topup <id> [no]           credit a top-up you found in the bank (or "no": not received)
 import { config } from "./config.js";
-import { openDb, makeStore } from "./db.js";
+import { openDb, makeStore, payRef } from "./db.js";
 import { stats, formatStats, formatJobs, formatQueue } from "./stats.js";
 import { backupDb, restoreDb } from "./backup.js";
 import { quote, runTask } from "./agent.js";
@@ -58,9 +58,9 @@ if (cmd === "stats") {
   console.log(store.forceRefund(Number(a)) ? `refunded job ${a}` : `job ${a} is not refundable`);
 } else if (cmd === "topups") {
   const rows = store.pendingTopups();
-  console.log(rows.map((t) => `#${t.id} ฿${t.amount} · แจ้งเมื่อ ${new Date(t.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "short", timeStyle: "short" })} · ${t.user_id}`).join("\n")
+  console.log(rows.map((t) => `#${t.id} ฿${t.amount} · หมายเหตุ ${payRef(t.user_id)} · แจ้งเมื่อ ${new Date(t.created_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "short", timeStyle: "short" })} · ${t.user_id}`).join("\n")
     || "ไม่มีคำขอเติมเครดิตที่รอตรวจ");
-  if (rows.length) console.log(`\nเช็กยอดเข้าในแอปธนาคารก่อน แล้วรัน: node src/cli.js topup <id>  (ไม่พบยอด: node src/cli.js topup <id> no)`);
+  if (rows.length) console.log(`\nเช็กในแอปธนาคารว่ามียอดที่หมายเหตุตรงกับคำขอ แล้วรัน: node src/cli.js topup <id>  (ไม่พบยอด: node src/cli.js topup <id> no)`);
 } else if (cmd === "topup" && Number(a)) {
   const t = store.decideTopup(Number(a), b !== "no");
   if (!t) {

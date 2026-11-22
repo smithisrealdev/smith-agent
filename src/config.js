@@ -33,9 +33,9 @@ export const config = {
   adminToken: adminToken(env.ADMIN_TOKEN), // turns on GET /admin/backup; leave empty to keep that route off
   dailyCostCap: whole("DAILY_COST_CAP", 500, 0), // baht of Claude cost per Thai day, all users together; 0 turns the cap off
   linePushQuota: whole("LINE_PUSH_QUOTA", 300, 0), // pushes a month on your LINE OA plan (free plan in Thailand: 300); stats warns near it
-  maxUsers: whole("MAX_USERS", 0, 0),
+  maxUsers: whole("MAX_USERS", 0, 0), // accounts allowed in the test round (the invite code is shared, so it caps nothing); 0 = no limit
   // Manual top-up by PromptPay: users transfer, tap "โอนแล้ว", and staff approve after checking the bank app. Off when empty.
-  topup: env.TOPUP_PROMPTPAY ? { promptpay: env.TOPUP_PROMPTPAY, name: env.TOPUP_NAME || "", amount: whole("TOPUP_AMOUNT", 50) } : null, // accounts allowed in the test round (the invite code is shared, so it caps nothing); 0 = no limit
+  topup: env.TOPUP_PROMPTPAY ? { promptpay: env.TOPUP_PROMPTPAY, name: env.TOPUP_NAME || "", amount: whole("TOPUP_AMOUNT", 50) } : null,
 };
 
 // The price the user sees before a job starts, and the work budget that price buys.

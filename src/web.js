@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { join, extname, basename } from "node:path";
 import { SIZES, REFUND } from "./config.js";
+import { payRef } from "./db.js";
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -93,7 +94,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
     const m = /^\/api\/jobs\/(\d+)(?:\/(start|cancel|refund))?$/.exec(path);
     const id = m && Number(m[1]);
 
-    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null, prices: { S: SIZES.S.price, M: SIZES.M.price, L: SIZES.L.price }, topup });
+    if (req.method === "GET" && path === "/api/me") return json(res, 200, { id: userId, credit: credit(userId), login: lineLogin ? "line" : null, prices: { S: SIZES.S.price, M: SIZES.M.price, L: SIZES.L.price }, topup: topup && { ...topup, ref: payRef(userId) } });
 
     if (req.method === "POST" && path === "/api/topup") {
       if (!topup) return json(res, 404, { error: "not_found" });

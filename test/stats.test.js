@@ -156,3 +156,11 @@ test("stats count people who really paid (approved PromptPay top-ups) apart from
   assert.equal(s.topupsWaiting, 1);
   assert.match(formatStats(s), /จ่ายเงินจริง \(PromptPay ที่อนุมัติแล้ว\) 1 คน รวม ฿50 · รอตรวจ 1 คำขอ/);
 });
+
+test("a top-up decided for a LINE user counts as a push this month (the CLI tells them in their chat)", () => {
+  const db = openDb(":memory:");
+  const store = makeStore(db, { startCredit: 9, now: () => new Date("2026-11-20T03:00:00Z") });
+  store.decideTopup(store.requestTopup("Uline", 50).id, true);
+  store.decideTopup(store.requestTopup("web:x", 50).id, true);
+  assert.equal(stats(db, new Date("2026-11-21T03:00:00Z")).linePushes, 1);
+});
