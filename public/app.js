@@ -567,9 +567,9 @@
     const topupCard = pay
       ? `<div class="card pad col"><div class="row"><span class="tile bare">${svg(IC.fill.wallet, 28)}</span><span class="col grow" style="gap:2px"><span class="t">เติมเครดิต ${baht(pay.amount)}</span>
           <span class="small muted">โอนผ่าน PromptPay แล้วแจ้งทีมงาน</span></span></div>
-          <div class="step"><span class="n">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""} ใส่หมายเหตุการโอนว่า <b>${esc(pay.ref)}</b> ทีมงานใช้รหัสนี้จับคู่ยอดกับบัญชีของคุณ</span></div>
-          <button class="pill-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px">คัดลอกเลข PromptPay</button>
-          <div class="step"><span class="n">2</span><span>กด "โอนแล้ว" ทีมงานตรวจยอดในบัญชีแล้วเติมให้ภายใน 1 วันทำการ</span></div>
+          <div class="step"><span class="n bare">1</span><span>โอน ${baht(pay.amount)} ไปที่ PromptPay <b>${esc(pay.promptpay)}</b>${pay.name ? ` ชื่อบัญชี ${esc(pay.name)}` : ""} ใส่หมายเหตุการโอนว่า <b>${esc(pay.ref)}</b> ทีมงานใช้รหัสนี้จับคู่ยอดกับบัญชีของคุณ</span></div>
+          <button class="link-btn" data-act="copy-pp" style="align-self:flex-start;margin-left:40px">คัดลอกเลข PromptPay</button>
+          <div class="step"><span class="n bare">2</span><span>กด "โอนแล้ว" ทีมงานตรวจยอดในบัญชีแล้วเติมให้ภายใน 1 วันทำการ</span></div>
           ${latest?.status === "pending"
             ? `<div class="note warn">${I.clock}<span>รอทีมงานตรวจยอด ${baht(latest.amount)} · ${esc(when(latest.created_at))}</span></div>`
             : `${latest?.status === "rejected" ? `<div class="note bad">${I.info}<span>ครั้งก่อนทีมงานยังไม่พบยอดโอน ถ้าโอนแล้วจริง ทักทีมงานพร้อมสลิป</span></div>` : ""}

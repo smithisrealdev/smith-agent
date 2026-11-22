@@ -142,6 +142,7 @@ a.item:active, button.item:active, .source:active, .link-btn:active { opacity: .
 .step .n { flex: none; width: 28px; height: 28px; border-radius: 14px; background: var(--surf); font-family: "Mitr", sans-serif; font-weight: 600; display: flex; align-items: center; justify-content: center; }
 .step > span:last-child { min-width: 0; overflow-wrap: anywhere; padding-top: 3px; }
 .step .n.ok { color: var(--gtxt); }
+.step .n.bare { background: none; color: var(--link); } /* a number in a how-to list: no disc behind it */
 .step .n.now { background: var(--blue); color: #FFFFFF; }
 .enter { animation: rise var(--base) var(--ease-out) both; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
