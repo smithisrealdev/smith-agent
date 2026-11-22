@@ -164,3 +164,22 @@ test("a top-up decided for a LINE user counts as a push this month (the CLI tell
   store.decideTopup(store.requestTopup("web:x", 50).id, true);
   assert.equal(stats(db, new Date("2026-11-21T03:00:00Z")).linePushes, 1);
 });
+
+test("a free re-search is no paid job and no repeat use, but its cost still counts", () => {
+  const db = openDb(":memory:");
+  const store = makeStore(db, { startCredit: 50 });
+  const u = store.user("a").id;
+  const root = store.addQuote(u, "x", { doable: true, reason: "", title: "t", steps: [], size: "M", cost: 0.2 });
+  store.start(u, root.id);
+  store.finish(root.id, { ok: true, answer: "ok", usage: { cost: 5 } });
+  store.addFollowUp(root.id, "x", { title: "y", steps: [], size: "M" }); // replaced by the next card
+  const free = store.addFollowUp(root.id, "x", { title: "y", steps: [], size: "M" });
+  store.start(u, free.id);
+  store.finish(free.id, { ok: true, answer: "ok", usage: { cost: 4 } });
+  const s = stats(db);
+  assert.equal(s.quotes, 1, "chat cards are not quotes the user asked for");
+  assert.equal(s.cancelled, 0, "a replaced card is not a cancelled quote");
+  assert.equal(s.avgPricePaid, 9, "a free run does not pull the average price down");
+  assert.equal(s.repeatUsers, 0, "one paid job and its free re-search is not repeat use");
+  assert.equal(s.cost.toFixed(1), "9.2", "what the free run cost is still counted");
+});

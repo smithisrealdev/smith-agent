@@ -236,13 +236,13 @@
   }
 
   // Draft legal text for the invite-only test, written from what the system actually does. A lawyer must review it before launch.
-  const UPDATED = "ฉบับร่างสำหรับช่วงทดลอง · ปรับปรุงล่าสุด 21 พ.ย. 2569";
+  const UPDATED = "ฉบับร่างสำหรับช่วงทดลอง · ปรับปรุงล่าสุด 22 พ.ย. 2569";
   const PRIVACY = [
-    ["ข้อมูลที่เราเก็บ", ["คำสั่งงาน ผลงาน ลิงก์และภาพหน้าจอที่ใช้เป็นหลักฐาน", "ประวัติเครดิต และเหตุผลที่คุณขอเงินคืน", "รหัสบัญชี LINE ของคุณ เมื่อเข้าสู่ระบบด้วย LINE", "รหัสอุปกรณ์แบบสุ่ม ซึ่งเราเก็บเฉพาะค่าที่เข้ารหัสทางเดียวแล้ว"]],
+    ["ข้อมูลที่เราเก็บ", ["คำสั่งงาน ผลงาน ลิงก์และภาพหน้าจอที่ใช้เป็นหลักฐาน", "ข้อความที่คุณคุยกับ Smith ทั้งก่อนสั่งงานและใต้ผลงาน แม้ไม่ได้สั่งงาน", "ประวัติเครดิต และเหตุผลที่คุณขอเงินคืน", "รหัสบัญชี LINE ของคุณ เมื่อเข้าสู่ระบบด้วย LINE", "รหัสอุปกรณ์แบบสุ่ม ซึ่งเราเก็บเฉพาะค่าที่เข้ารหัสทางเดียวแล้ว"]],
     ["ข้อมูลที่เราไม่เก็บ", ["รหัสผ่าน เลขบัตรประชาชน ข้อมูลบัตรเครดิต หรือรหัส OTP Smith ไม่ต้องใช้ข้อมูลเหล่านี้ อย่าพิมพ์ลงในคำสั่ง"]],
     ["เราใช้ข้อมูลทำอะไร", ["ทำงานตามคำสั่งของคุณ และส่งผลให้คุณ (ฐานสัญญา)", "คิดเครดิตและคืนเครดิต", "ป้องกันการใช้งานผิดวัตถุประสงค์ และปรับปรุงบริการจากสถิติรวม (ฐานประโยชน์โดยชอบด้วยกฎหมาย)"]],
     ["ใครได้รับข้อมูล", ["ผู้ให้บริการ AI (Anthropic สหรัฐอเมริกา) ประมวลผลคำสั่งและหน้าเว็บที่ Smith อ่าน", "LINE เมื่อคุณเข้าสู่ระบบหรือรับผลงานทาง LINE", "บริการโลโก้เว็บไซต์ของ Google ได้รับเฉพาะชื่อเว็บไซต์ที่อยู่ในผลงาน ไม่มีข้อมูลที่ระบุตัวคุณ", "ผู้ให้บริการเซิร์ฟเวอร์ที่ Smith ใช้", "เราไม่ขายข้อมูลให้ใคร"]],
-    ["เก็บนานแค่ไหน", ["เก็บจนกว่าคุณจะลบบัญชี ซึ่งทำได้เองทันทีในหน้าตั้งค่า งาน หลักฐาน และประวัติเครดิตจะถูกลบทั้งหมด", "เมื่อจบช่วงทดลอง เราอาจลบข้อมูลทั้งหมดของช่วงทดลอง"]],
+    ["เก็บนานแค่ไหน", ["เก็บจนกว่าคุณจะลบบัญชี ซึ่งทำได้เองทันทีในหน้าตั้งค่า งาน แชท หลักฐาน และประวัติเครดิตจะถูกลบทั้งหมด", "เมื่อจบช่วงทดลอง เราอาจลบข้อมูลทั้งหมดของช่วงทดลอง"]],
     ["สิทธิ์ของคุณ", ["ขอดูหรือขอสำเนาข้อมูล ขอแก้ไข ขอลบ และคัดค้านการใช้ข้อมูล", "ร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (สคส.) ได้"]],
     ["ความปลอดภัย", ["ภาพหลักฐานตั้งชื่อแบบสุ่มที่เดาไม่ได้", "ทีมงานเข้าถึงข้อมูลเฉพาะเท่าที่จำเป็นต่อการดูแลบริการ"]],
   ];
@@ -263,9 +263,13 @@
 
   // ---------- home
   // One example per buyer group in founder/customer.json, all where the saving is worth the fee (founder/pricing.md:
-  // the fee does not pay off on an item under ฿100): big items, trips, flights, and stock for a small shop.
+  // the fee does not pay off on an item under ฿100): big items, trips, flights, and stock for a small shop. The three
+  // shop-owner jobs after the first (the first group tested) passed real trial jobs on 22 Nov 2026.
   const TEMPLATES = [
     { label: "เทียบราคาของชิ้นใหญ่", icon: "tag", tone: "cor", text: "เทียบราคา [ชื่อสินค้าและรุ่น] จากหลายร้าน พร้อมลิงก์และโค้ดส่วนลดถ้ามี" },
+    { label: "เทียบค่าส่งพัสดุ", icon: "list", tone: "grn", text: "เทียบค่าส่งพัสดุ [น้ำหนัก] กก. จาก [จังหวัดต้นทาง] ไป [จังหวัดปลายทาง] สัปดาห์ละ [จำนวน] กล่อง เจ้าไหนถูกที่สุด" },
+    { label: "เช็กค่าธรรมเนียมร้านออนไลน์", icon: "wallet", tone: "yel", text: "ขาย [สินค้า] บน [Shopee/Lazada/TikTok] เดือนละ [ยอดขาย] บาท ตอนนี้โดนหักค่าธรรมเนียมกี่ % ได้สิทธิ์ลดค่าธรรมเนียมไหม ต้องจดทะเบียนอะไร" },
+    { label: "หาโรงงาน OEM", icon: "shield", tone: "blu", text: "หาโรงงานผลิต [สินค้า] OEM ขั้นต่ำไม่เกิน [จำนวน] ชิ้น มีมาตรฐาน [เช่น GMP] เทียบ 5 เจ้า" },
     { label: "หาตั๋วเครื่องบิน", icon: "plane", tone: "blu", text: "หาตั๋วเครื่องบินไป [เมือง] วันที่ [วัน] กลับวันที่ [วัน] ราคาถูกสุด รวมกระเป๋า" },
     { label: "หาที่พักวันหยุดยาว", icon: "plane", tone: "grn", text: "หาที่พักที่ [จังหวัด] วันที่ [วัน] ถึง [วัน] สำหรับ [จำนวน] คน งบไม่เกิน [บาท] ต่อคืน" },
     { label: "หาราคาส่งเข้าร้าน", icon: "receipt", tone: "yel", text: "หาราคาส่ง [สินค้า] จำนวน [จำนวน] ชิ้น จากหลายร้าน รวมค่าส่ง" },
@@ -344,11 +348,41 @@
           <textarea id="cmd" class="field" rows="1" maxlength="1000" placeholder="อยากให้ Smith ช่วยอะไร…">${esc(state.draft)}</textarea>
           <button class="send" data-act="send">สั่งงาน</button>
         </div>
-        <div class="hscroll" role="group" aria-label="ตัวอย่างงาน">${TEMPLATES.map((t, i) => `<button class="chip ${t.tone}" data-act="template" data-arg="${i}">${svg(IC.fill[t.icon], 20)}${esc(t.label)}</button>`).join("")}</div>
+        <div class="hscroll" role="group" aria-label="ตัวอย่างงาน"><a class="chip" href="#/talk">${svg(IC.fill.help, 20)}คุยกับ Smith</a>${TEMPLATES.map((t, i) => `<button class="chip ${t.tone}" data-act="template" data-arg="${i}">${svg(IC.fill[t.icon], 20)}${esc(t.label)}</button>`).join("")}</div>
       </div>`;
   }
   // The composer is one line until there is more to show; it grows with the text, up to a few lines.
   const fitCmd = (box) => { if (!box) return; box.style.height = "auto"; box.style.height = `${Math.min(box.scrollHeight, 132)}px`; };
+
+  // ---------- chat before a job: free answers; a job reply's card opens its price screen
+  const talkCard = (c) => `<div class="chat-card"><span class="mitr" style="font-weight:600">${esc(c.title)}</span>${
+    c.status === "quoted" ? `<a class="btn" href="#/quote/${c.id}">ดูราคา ${baht(c.price)}</a>`
+      : ["cancelled", "rejected"].includes(c.status) ? '<span class="small muted">ยกเลิกแล้ว</span>'
+      : `<a class="btn second" href="#/job/${c.id}">ดูงาน</a>`}</div>`;
+  const talkLog = (talk) => (talk.length
+    ? `<div class="chat">${talk.map((e) => (e.role === "user"
+      ? `<div class="bubble pre"><span class="sr">คุณ: </span>${esc(e.text)}</div>`
+      : `<div class="bubble smith"><span class="pre"><span class="sr">Smith: </span>${esc(plain(e.text))}</span>${e.job ? talkCard(e.job) : ""}</div>`)).join("")}</div>`
+    : '<p class="small muted" style="padding:0 4px">ถามเรื่อง Smith หรือเรื่องทั่วไปได้ฟรี งานที่ต้องค้นเว็บ Smith บอกราคาก่อนเริ่ม</p>');
+  // What screen readers hear after a reply: Smith's last message, without markdown.
+  const talkSaid = (talk) => (talk.at(-1)?.role === "smith" ? `Smith: ${plain(talk.at(-1).text)}` : "");
+  async function talkScreen() {
+    const r = await api("GET", "/api/talk");
+    if (!r.ok) throw new Error(`talk ${r.status}`);
+    render(`${topbar("คุยกับ Smith")}
+      <div class="slot" id="talk-log">${talkLog(r.data.talk)}</div>
+      <p class="sr" role="status" id="talk-said"></p>
+      <div class="chat-box"><label class="sr" for="say">พิมพ์ถาม หรือบอกงานที่อยากให้ทำ</label>
+        <input id="say" maxlength="1000" enterkeyhint="send" autocomplete="off" placeholder="พิมพ์ถาม หรือบอกงานที่อยากให้ทำ">
+        <button class="send" data-act="say">ส่ง</button></div>`);
+    const fresh = state.talkFresh; // arrived with a reply to the order box: read it out
+    state.talkFresh = false;
+    setTimeout(() => { // after the router scrolls to the top, and once the status line is on the page
+      document.getElementById("say")?.scrollIntoView({ block: "end" });
+      const said = document.getElementById("talk-said");
+      if (fresh && said) said.textContent = talkSaid(r.data.talk);
+    });
+  }
 
   // ---------- quote
   async function quoteScreen(id) {
@@ -432,6 +466,13 @@
     return poll(() => liveScreen(id), 2000);
   }
   const watchSig = (j) => `${j.progress.length}|${j.live?.frame?.image || ""}|${j.live?.page || ""}`;
+  // The design's moving pointer (board LiveView): it glides to a row, clicks, and a yellow ring follows. It shows Smith at
+  // work, not where it clicks: Smith reads pages as text and clicks nothing.
+  // The card is redrawn on every step, so each redraw starts the 7-second loop where the clock says it is, and the motion carries on.
+  const pointer = () => {
+    const phase = `animation-delay:-${Date.now() % 7000}ms`;
+    return `<span class="ring" aria-hidden="true" style="${phase}"></span><svg class="pointer" aria-hidden="true" width="26" height="26" viewBox="0 0 26 26" style="${phase}"><path d="M5 3l15 9-6.5 1.5L10 20z" fill="#0B1B4D" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/></svg>`;
+  };
   const watchParts = (j) => {
     const now = j.progress.at(-1);
     const shot = j.live?.frame;
@@ -440,7 +481,7 @@
     const pages = j.progress.filter((p) => p.host).length;
     const doing = !now ? "เริ่มงาน" : now.host ? `อ่าน ${now.host}` : now.text.startsWith("ค้นหา") ? "ค้นหา" : now.text;
     return `<div class="browser"><div class="bar">${svg(IC.bold.lock, 14)}<span class="url">${esc(url ? url.replace(/^https?:\/\/(www\.)?/, "") : "กำลังเปิดเว็บ")}</span></div>
-        ${shot ? `<img class="page" src="${esc(shot.image)}" alt="หน้าเว็บ ${esc(hostOf(shot.url))} ที่ Smith เปิดอ่าน">` : `<div class="page empty"><div class="mascot">${M.work || ""}</div></div>`}</div>
+        <div class="page">${shot ? `<img src="${esc(shot.image)}" alt="หน้าเว็บ ${esc(hostOf(shot.url))} ที่ Smith เปิดอ่าน">` : '<span class="rows" aria-hidden="true"><i></i><i></i><i></i></span>'}${pointer()}</div></div>
       <p class="live-now" role="status">${esc(now?.text || "Smith กำลังเริ่มงาน")} ${DOTS}</p>
       <div class="live-chips">${searches ? `<span>${svg(IC.bold.check, 14)}ค้นหา ${searches} ครั้ง</span>` : ""}${pages ? `<span>${svg(IC.bold.check, 14)}เปิดอ่าน ${pages} เว็บ</span>` : ""}<span class="now"><i></i>${esc(doing)}</span></div>`;
   };
@@ -507,15 +548,61 @@
     ...(j.codes?.length ? [`โค้ดที่เจอบนหน้าเว็บ (อาจหมดอายุ): ${j.codes.map((c) => c.code).join(", ")}`] : []),
     `เช็กเมื่อ ${new Date(j.finishedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short" })} ${clock(new Date(j.finishedAt))} ราคาอาจเปลี่ยน ตรวจที่ลิงก์ก่อนซื้อ`, // read later, so a date, not "a minute ago"
   ].join("\n");
+  // Smith's answer as the headline of the result (the design's Done board): a label, a short opening larger, and lines
+  // written as a list shown as one: "-", "•" or ✅ lines with the app's check icon, numbered lines as a numbered list.
+  // Each run of list lines of one kind, or of other lines, becomes its own list or paragraph; a blank line also ends a run.
+  const LIST_LINE = /^\s*(?:[-•*]|✅|✔️?|\d+[.)])\s+/u;
+  const plain = (s) => String(s ?? "").replace(/\*\*(.+?)\*\*/gs, "$1"); // the model sometimes marks bold with **; the app shows plain text
+  const answerCard = (j) => {
+    const runs = [];
+    for (const block of plain(j.answer).trim().split(/\n\s*\n/)) {
+      let run = null;
+      for (const line of block.split("\n").filter((l) => l.trim())) {
+        const kind = !LIST_LINE.test(line) ? "p" : /^\s*\d+[.)]\s/.test(line) ? "ol" : "ul";
+        if (run?.kind !== kind) runs.push((run = { kind, lines: [] }));
+        run.lines.push(kind === "p" ? line : line.replace(LIST_LINE, ""));
+      }
+    }
+    const items = (r, mark) => r.lines.map((l) => `<li>${mark}<span>${esc(l)}</span></li>`).join("");
+    const body = runs.map((r, i) => (r.kind === "ul" ? `<ul class="answer-list" role="list">${items(r, svg(IC.bold.check, 16))}</ul>`
+      : r.kind === "ol" ? `<ol class="answer-list" role="list">${items(r, "")}</ol>`
+      : `<p${i === 0 && r.lines.join("\n").length <= 90 ? ' class="lead"' : ""}>${esc(r.lines.join("\n"))}</p>`)).join(""); // only a short opening reads as a headline
+    return `<div class="card pad answer"><span class="pill">${svg(IC.bold.sparkle, 14)}${j.options?.length ? "Smith แนะนำ" : "สรุปจาก Smith"}</span>${body}</div>`;
+  };
+  // The chat under a result: questions answered from what Smith found, and re-search cards that start only with a tap.
+  // The hint shows only before the first message, when no re-search exists yet; a re-search of a re-search is never free.
+  const freeLeft = (j) => !j.parentId;
+  const childCard = (c) => {
+    const open = (label) => `<a class="btn second" href="#/job/${c.id}">${label}</a>`;
+    const next = c.status === "quoted" ? `<button class="btn" data-act="start" data-arg="${c.id}">${c.price ? `เริ่มงาน ${baht(c.price)}` : "ค้นใหม่ฟรี"}</button>`
+      : c.status === "running" ? open("กำลังค้น ดูความคืบหน้า")
+      : ["done", "refunded", "refund_review"].includes(c.status) ? open("ดูผลค้นใหม่")
+      : c.status === "failed" ? open("ค้นใหม่ไม่สำเร็จ ไม่คิดเงิน")
+      : '<span class="small muted">ยกเลิกแล้ว</span>';
+    return `<div class="chat-card"><span class="mitr" style="font-weight:600">${esc(c.title)}</span>${c.steps.length ? `<ol>${c.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}${next}</div>`;
+  };
+  // The user's messages use the same bubble as their request on the price screen.
+  const chatBubble = (e) => (e.role === "user"
+    ? `<div class="bubble pre"><span class="sr">คุณ: </span>${esc(e.text)}</div>`
+    : `<div class="bubble smith"><span class="pre"><span class="sr">Smith: </span>${esc(plain(e.text))}</span>${e.child ? childCard(e.child) : ""}</div>`);
+  const chatLog = (j) => (j.chat.length
+    ? `<div class="chat">${j.chat.map(chatBubble).join("")}</div>`
+    : `<p class="small muted" style="padding:0 4px;margin-top:-6px">${freeLeft(j) ? "ถามเรื่องผลนี้ได้ฟรี หรือบอกว่าไม่ถูกใจตรงไหน Smith ค้นใหม่ให้ฟรี 1 ครั้ง" : "ถามเรื่องผลนี้ได้ฟรี หรืออยากให้ค้นใหม่ก็บอกได้ Smith บอกราคาก่อนเริ่ม"}</p>`);
+  const chatPart = (j) => `<div class="sect">คุยกับ Smith</div>
+      <div class="slot" id="chat-log">${chatLog(j)}</div>
+      <p class="sr" role="status" id="chat-said"></p>
+      <div class="chat-box"><label class="sr" for="ask">ถามเพิ่ม หรือบอกว่าอยากให้ค้นใหม่แบบไหน</label>
+        <input id="ask" maxlength="500" enterkeyhint="send" autocomplete="off" placeholder="ถามเพิ่ม หรือบอกว่าอยากให้ค้นใหม่แบบไหน">
+        <button class="send" data-act="ask" data-arg="${j.id}">ส่ง</button></div>`;
   function doneView(j, credit) {
-    const refundable = j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3;
+    const refundable = j.price > 0 && j.status === "done" && Date.now() - Date.parse(j.finishedAt) < 24 * 3600e3; // a free re-search has nothing to refund
     // The phone reads the result aloud (its own Thai voice): for hands-busy moments and for people who find reading hard.
     const listen = "speechSynthesis" in window ? `<button class="icon-btn" data-act="speak" aria-label="ฟังผลงาน" aria-pressed="false">${I.speaker}</button>` : undefined;
     return `${topbar(j.title, "#/", listen)}
       <div class="center"><div class="mascot">${M.done || ""}${SPARKS}</div><h1 role="status">เสร็จแล้ว!</h1></div>
       ${j.status === "refunded" ? `<div class="note good">${I.check}<span>คืนเงิน ${baht(j.price)} เป็นเครดิตแล้ว</span></div>` : ""}
       ${j.status === "refund_review" ? `<div class="note warn">${I.clock}<span>ทีมงานกำลังตรวจคำขอคืนเงิน ภายใน 1 วันทำการ</span></div>` : ""}
-      <div class="card pad pre" style="font-size:16px;line-height:1.6">${esc(j.answer)}</div>
+      ${answerCard(j)}
       ${j.options?.length ? `<div class="sect">ตัวเลือกที่เจอ</div>${j.options.map(optionCard).join("")}` : ""}
       ${j.codes?.length ? `<div class="sect">โค้ดส่วนลดที่เจอ</div><p class="small muted" style="padding:0 4px;margin-top:-6px">เจอบนหน้าเว็บ อาจหมดอายุ ตรวจก่อนใช้</p>${j.codes.map(codeRow).join("")}` : ""}
       <div class="sect">หลักฐานที่ตรวจเองได้</div>
@@ -527,7 +614,7 @@
         <div class="item"><span class="grow muted">ใช้เวลา</span><span>${duration(j.startedAt, j.finishedAt)}</span></div>
         <div class="item"><span class="grow muted">เช็กข้อมูลเมื่อ</span><span>${esc(when(j.finishedAt))}</span></div>
         <div class="item"><span class="grow muted">เครดิตคงเหลือ</span><span>${baht(credit)}</span></div></div>
-      <button class="btn" data-act="followup">สั่งต่อจากผลงานนี้</button>
+      ${chatPart(j)}
       <button class="btn second" data-act="share">${LINE_MARK}ส่งให้เพื่อนดู</button>
       <button class="btn second" data-act="retry">ทำงานนี้อีกครั้ง</button>
       ${refundable ? `<a class="btn text-danger" href="#/refund/${j.id}">ผลไม่ตรง ขอเงินคืน</a>` : ""}`;
@@ -736,24 +823,44 @@
     btn.setAttribute("aria-busy", "true");
     if (label) btn.innerHTML = `${label} ${DOTS}`;
   };
-  // Why a quote or a start was turned down, by status.
-  const NO = { 429: "สั่งงานบ่อยเกินไป รอสักครู่แล้วลองใหม่", 503: "วันนี้ Smith รับงานเต็มแล้ว ลองใหม่พรุ่งนี้ ไม่คิดเงิน" };
+  // Why a message, a quote or a start was turned down, by status.
+  const NO = { 429: "ส่งบ่อยเกินไป รอสักครู่แล้วลองใหม่", 503: "วันนี้ Smith รับงานเต็มแล้ว ลองใหม่พรุ่งนี้ ไม่คิดเงิน" };
+  const talkRefused = (r) => (r.data?.error === "talk_busy" ? "Smith กำลังตอบข้อความก่อนหน้า รอสักครู่" : NO[r.status] || "ระบบขัดข้อง ลองใหม่อีกครั้ง");
   const actions = {
+    // The order box: a job opens its price screen (charged only on start), anything else gets a free answer in the chat.
     async send(_, btn) {
       const text = state.draft.trim();
       if (!text) {
         document.getElementById("cmd")?.focus();
-        return toast("พิมพ์งานที่อยากให้ทำก่อน");
+        return toast("พิมพ์คำถาม หรืองานที่อยากให้ทำก่อน");
       }
-      busy(btn, "คิดราคา");
-      const r = await api("POST", "/api/quote", { text });
+      busy(btn, "กำลังคิด");
+      const r = await api("POST", "/api/talk", { text });
       if (!r.ok) {
         render(homeView());
-        return toast(NO[r.status] || "ระบบขัดข้อง ลองใหม่อีกครั้ง");
+        return toast(talkRefused(r));
       }
       state.draft = "";
       saved.set("draft", "");
-      go(`#/quote/${r.data.job.id}`);
+      state.talkFresh = !r.data.job;
+      go(r.data.job ? `#/quote/${r.data.job.id}` : "#/talk");
+    },
+    async say(_, btn) {
+      const box = document.getElementById("say");
+      const text = box.value.trim();
+      if (!text) return box.focus(), toast("พิมพ์ข้อความก่อน");
+      busy(btn, "กำลังคิด");
+      const r = await api("POST", "/api/talk", { text });
+      if (!box.isConnected) return; // the user left this screen meanwhile: the reply is saved and shows when they come back
+      btn.removeAttribute("aria-busy");
+      btn.textContent = "ส่ง";
+      if (!r.ok) return toast(talkRefused(r)); // a refused message stays in the box, to send again
+      if (r.data.job) return go(`#/quote/${r.data.job.id}`);
+      box.value = "";
+      // Only the thread is redrawn, as in the chat under a result.
+      document.getElementById("talk-log").innerHTML = talkLog(r.data.talk);
+      document.getElementById("talk-said").textContent = talkSaid(r.data.talk); // read out by screen readers
+      box.scrollIntoView({ block: "end", behavior: pref("motion") ? "smooth" : "auto" });
     },
     compose() {
       const box = document.getElementById("cmd");
@@ -792,10 +899,23 @@
       saved.set("draft", state.draft);
       go("#/");
     },
-    followup() {
-      state.draft = `ต่อจากงาน "${state.job?.title || ""}": `;
-      saved.set("draft", state.draft);
-      go("#/");
+    async ask(id, btn) {
+      const box = document.getElementById("ask");
+      const text = box.value.trim();
+      if (!text) return box.focus(), toast("พิมพ์คำถามก่อน");
+      busy(btn, "กำลังตอบ");
+      const r = await api("POST", `/api/jobs/${id}/chat`, { text });
+      if (!box.isConnected) return; // the user left this screen meanwhile: the answer is saved and shows when they come back
+      btn.removeAttribute("aria-busy");
+      btn.textContent = "ส่ง";
+      // a refused question stays in the box, to send again
+      if (!r.ok) return toast(r.status === 429 ? "ถามได้ไม่เกิน 10 ข้อต่องาน" : r.data.error === "chat_busy" ? "Smith กำลังตอบคำถามก่อนหน้า รอสักครู่" : NO[r.status] || "ระบบขัดข้อง ลองใหม่อีกครั้ง");
+      state.job = r.data.job;
+      box.value = "";
+      // Only the chat is redrawn: redrawing the screen reloads its pictures, and the page would jump while they load.
+      document.getElementById("chat-log").innerHTML = chatLog(r.data.job);
+      document.getElementById("chat-said").textContent = `Smith: ${r.data.job.chat.at(-1)?.text || ""}`; // read out by screen readers
+      [...app.querySelectorAll("#chat-log .bubble")].at(-1)?.scrollIntoView({ block: "nearest", behavior: pref("motion") ? "smooth" : "auto" });
     },
     async retry(_, btn) {
       busy(btn, "กำลังคิดราคา");
@@ -991,6 +1111,12 @@
       welcome();
     }
   });
+  // Enter in a chat box sends, like its send button (and like it, ignored while a reply is on its way).
+  app.addEventListener("keydown", (e) => {
+    if (!["ask", "say"].includes(e.target.id) || e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    app.querySelector(`[data-act="${e.target.id}"]`)?.click();
+  });
   app.addEventListener("input", (e) => {
     if (e.target.id === "cmd") {
       fitCmd(e.target);
@@ -1035,6 +1161,7 @@
     [/^#\/login(\?e=1)?$/, login],
     [/^#\/privacy$/, privacy],
     [/^#\/terms$/, terms],
+    [/^#\/talk$/, talkScreen],
     [/^#\/quote\/(\d+)$/, quoteScreen],
     [/^#\/job\/(\d+)$/, jobScreen],
     [/^#\/live\/(\d+)$/, liveScreen],

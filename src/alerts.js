@@ -25,5 +25,6 @@ export function createAlerts({ push = null, adminId = "", log = console, now = (
 export const ALERT = {
   topup: (t, ref) => `มีคำขอเติมเครดิต ฿${t.amount} (คำขอที่ ${t.id} · หมายเหตุ ${ref})\nเช็กยอดในแอปธนาคาร แล้วรัน: node src/cli.js topup ${t.id}`,
   review: (j, why) => `คำขอคืนเงินรอตรวจ: งาน #${j.id} ${j.title || ""} · ฿${j.price}\nเหตุผล: ${why || "-"}\nดูคิว: node src/cli.js queue`,
+  storeRefund: (p) => `${p.platform === "ios" ? "App Store" : "Google Play"} คืนเงินแพ็ก ${p.product_id} (เครดิต ฿${p.credit}) ให้ ${p.user_id ? `${p.user_id}\nถ้าจะหักเครดิตคืน: node src/cli.js grant ${p.user_id} -${p.credit}` : "บัญชีที่ลบไปแล้ว"}`,
   cap: (baht) => `ค่า Claude วันนี้ถึงเพดาน ฿${baht} แล้ว Smith หยุดรับงานใหม่จนเที่ยงคืน (ตั้งที่ DAILY_COST_CAP)`,
 };

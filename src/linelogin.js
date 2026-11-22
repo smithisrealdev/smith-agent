@@ -7,6 +7,13 @@ export function createLineLogin({ channelId, channelSecret, callbackUrl, fetchIm
   const pending = new Map(); // state -> { key, nonce, expires }
   const form = (body) => ({ method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
 
+  const claimsOf = async (verifyRes) => {
+    if (!verifyRes.ok) throw new Error(`LINE verify ${verifyRes.status}`);
+    const claims = await verifyRes.json();
+    if (!claims.sub || claims.aud !== channelId) throw new Error("ID token not for this channel");
+    return claims.sub;
+  };
+
   return {
     // `key` identifies the phone that started the login; LINE hands `state` back to the callback.
     start(key) {
@@ -21,7 +28,7 @@ export function createLineLogin({ channelId, channelSecret, callbackUrl, fetchIm
         state,
         scope: "profile openid",
         nonce,
-        bot_prompt: "aggressive", // offer to add the Smith LINE account, so results can be sent to the chat
+        bot_prompt: "normal", // an add-friend choice on the consent page (so results can be sent to the chat); "aggressive" adds a page after it
       });
       return `https://access.line.me/oauth2/v2.1/authorize?${q}`;
     },
@@ -37,10 +44,13 @@ export function createLineLogin({ channelId, channelSecret, callbackUrl, fetchIm
       const { id_token: idToken } = await tokenRes.json();
       if (!idToken) throw new Error("LINE returned no ID token");
       const verifyRes = await fetchImpl("https://api.line.me/oauth2/v2.1/verify", form({ id_token: idToken, client_id: channelId, nonce: p.nonce }));
-      if (!verifyRes.ok) throw new Error(`LINE verify ${verifyRes.status}`);
-      const claims = await verifyRes.json();
-      if (!claims.sub || claims.aud !== channelId) throw new Error("ID token not for this channel");
-      return { key: p.key, userId: claims.sub };
+      return { key: p.key, userId: await claimsOf(verifyRes) };
+    },
+
+    // The phone app signs in with the LINE SDK, which hands it an ID token for this same channel: LINE checks it.
+    async verifyNative(idToken) {
+      if (!idToken || typeof idToken !== "string") throw new Error("no ID token");
+      return claimsOf(await fetchImpl("https://api.line.me/oauth2/v2.1/verify", form({ id_token: idToken, client_id: channelId })));
     },
   };
 }

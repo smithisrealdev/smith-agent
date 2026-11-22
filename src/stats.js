@@ -3,16 +3,18 @@ import { STORE_NET_RATE, SIZES, config } from "./config.js";
 // The experiment's numbers: does Smith finish jobs, and does the price cover what Claude costs?
 export function stats(db, now = new Date()) {
   const jobs = db.prepare("SELECT * FROM jobs").all();
+  // A free re-search from the chat runs, and its cost counts, but it is no quote the user asked for, no paid job and no repeat use.
+  const free = (j) => j.parent_id != null && j.price === 0;
   const count = (status) => jobs.filter((j) => j.status === status).length;
   const sum = (list, f) => list.reduce((s, j) => s + f(j), 0);
   const started = jobs.filter((j) => j.started_at);
   const finished = started.filter((j) => j.finished_at && !["restart", "taken_over"].includes(j.error)); // neither is Smith failing
   const succeeded = finished.filter((j) => ["done", "refunded", "refund_review"].includes(j.status));
-  const charged = jobs.filter((j) => ["done", "refund_review"].includes(j.status));
+  const charged = jobs.filter((j) => ["done", "refund_review"].includes(j.status) && !free(j));
   const revenue = sum(charged, (j) => j.price);
   const cost = sum(jobs, (j) => j.quote_cost + j.run_cost);
   const perUser = new Map();
-  for (const j of started) perUser.set(j.user_id, (perUser.get(j.user_id) || 0) + 1);
+  for (const j of started) if (!free(j)) perUser.set(j.user_id, (perUser.get(j.user_id) || 0) + 1);
   // Which sites the agent could and could not read: tells whether the big shops are out of reach.
   const tally = (key) => {
     const n = new Map();
@@ -33,13 +35,13 @@ export function stats(db, now = new Date()) {
   // LINE OA plan stops delivering after its monthly quota. Counted from the 1st of this month, Thai time.
   const bkk = new Date(now.getTime() + 7 * 3600e3);
   const monthStart = new Date(Date.UTC(bkk.getUTCFullYear(), bkk.getUTCMonth(), 1) - 7 * 3600e3).toISOString();
-  const linePushes = jobs.filter((j) => !j.user_id.startsWith("web:") && j.finished_at && j.finished_at >= monthStart).length
+  const linePushes = jobs.filter((j) => !j.user_id.includes(":") && j.finished_at && j.finished_at >= monthStart).length
     + db.prepare("SELECT COUNT(*) AS n FROM topups WHERE user_id NOT LIKE 'web:%' AND decided_at >= ?").get(monthStart).n; // the CLI tells LINE users when it decides a top-up
   const seconds = finished.map((j) => (Date.parse(j.finished_at) - Date.parse(j.started_at)) / 1000).sort((a, b) => a - b);
   return {
-    quotes: jobs.length,
+    quotes: jobs.filter((j) => !free(j)).length,
     rejected: count("rejected"),
-    cancelled: count("cancelled"),
+    cancelled: jobs.filter((j) => j.status === "cancelled" && !free(j)).length, // a free card replaced by a newer one is no cancelled quote
     started: started.length,
     running: count("running"),
     done: count("done"),

@@ -60,7 +60,7 @@ export function createRunner({ store, runTask, screenshot, saveLogos = async () 
         Promise.resolve(saveLogos([url], logos)).catch(() => {}); // fetched now, so the step can show the site's logo while the job runs
         w.page = url;
         watch(url);
-      }, w.abort.signal);
+      }, w.abort.signal, job.parent_id ? store.job(job.parent_id) : null); // a re-search builds on the job it continues
     } catch (err) {
       // shortcut: a stopped job records no cost, since OpenRouter states the charge only at the end of the stream; count it from the OpenRouter dashboard if take-overs get common
       if (w.takenOver) r = { ok: false, error: "taken_over", summary: TAKEN_OVER, sources: shown(w) ? [{ title: logoHost(shown(w)), url: shown(w) }] : [] };

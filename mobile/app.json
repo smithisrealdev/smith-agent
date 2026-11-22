@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Smith",
+    "slug": "smith",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "smith",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FFFFFF",
+    "ios": {
+      "bundleIdentifier": "com.smithagent.app",
+      "supportsTablet": false,
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.smithagent.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFC21A",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFC21A",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 160
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "ios": { "useFrameworks": "static", "deploymentTarget": "16.4" },
+          "android": { "minSdkVersion": 24 }
+        }
+      ],
+      "./plugins/with-line.js",
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        { "color": "#0A4BFF" }
+      ],
+      "expo-iap",
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

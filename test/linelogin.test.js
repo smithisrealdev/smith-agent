@@ -28,7 +28,7 @@ test("the authorize URL asks LINE for an ID token, with state, nonce and the bot
   assert.equal(q.client_id, "1650000000");
   assert.equal(q.redirect_uri, "https://smith.example/auth/line/callback");
   assert.equal(q.scope, "profile openid");
-  assert.equal(q.bot_prompt, "aggressive");
+  assert.equal(q.bot_prompt, "normal"); // the add-friend choice sits on the consent page, with no extra page after it
   assert.match(q.state, /^[0-9a-f]{48}$/);
   assert.match(q.nonce, /^[0-9a-f]{32}$/);
 });
@@ -60,4 +60,12 @@ test("LINE errors and tokens for another channel are refused", async () => {
   await assert.rejects(bad.login.finish(new URL(bad.login.start("k")).searchParams.get("state"), "c"), /LINE token 400/);
   const other = setup({ claims: { sub: "U9", aud: "999" } });
   await assert.rejects(other.login.finish(new URL(other.login.start("k")).searchParams.get("state"), "c"), /not for this channel/);
+});
+
+test("the phone app's LINE SDK token is checked by LINE for this channel, with no redirect", async () => {
+  const { login, line } = setup();
+  assert.equal(await login.verifyNative("sdk-idt"), "U1234");
+  assert.deepEqual(line.calls, [{ url: "https://api.line.me/oauth2/v2.1/verify", body: { id_token: "sdk-idt", client_id: "1650000000" } }]);
+  await assert.rejects(setup({ claims: { sub: "U9", aud: "999" } }).login.verifyNative("x"), /not for this channel/);
+  await assert.rejects(login.verifyNative(""), /no ID token/);
 });

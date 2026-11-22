@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costThb, quote, runTask, stepOf, cleanCodes, modelId, webTools } from "../src/agent.js";
+import { costThb, quote, runTask, stepOf, cleanCodes, modelId, webTools, chat, talk } from "../src/agent.js";
+import { SIZES, config, REFUND } from "../src/config.js";
 
 // A stand-in for the SDK client that returns canned responses and records each request.
 function fakeClient(...responses) {
@@ -219,4 +220,119 @@ test("a streamed job through OpenRouter is charged what OpenRouter says (from th
   assert.equal(r.usage.cost.toFixed(2), "0.72", "$0.02 at 36 baht, however many tokens");
   const plain = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient({ ...report, charged: undefined, model: "claude-opus-5-5" }));
   assert.ok(plain.usage.cost > 0, "with no stated charge (Anthropic direct) the list prices still apply");
+});
+
+const DONE = { text: "หาหูฟัง", answer: "ร้าน B ถูกสุด", options: JSON.stringify([{ name: "B", price: "฿8,990", note: "", url: "https://b.example/x" }]), codes: "[]", sources: "[]", chat: JSON.stringify([{ role: "user", text: "ถามก่อนหน้า" }]) };
+const reply = (input) => ({ model: "claude-opus-5-5", usage: usage(), content: input ? [toolUse("reply", input)] : [] });
+
+test("chat answers from the result in one low-effort call, a search carries a plan, and no tool call is a plain answer", async () => {
+  const client = fakeClient(
+    reply({ kind: "answer", text: "ร้าน B ส่งฟรี", title: "", steps: [], size: "S" }),
+    reply({ kind: "search", text: "จะค้นร้านที่ถูกกว่า", title: "หาหูฟังถูกกว่า", steps: ["ค้น 3 ร้าน"], size: "X" }),
+    reply(null),
+    reply(null),
+  );
+  const a = await chat(DONE, "ร้านไหนส่งฟรี", client);
+  assert.deepEqual([a.kind, a.text], ["answer", "ร้าน B ส่งฟรี"]);
+  assert.ok(a.cost > 0);
+  assert.equal(client.calls[0].output_config.effort, "low");
+  const sent = JSON.stringify(client.calls[0].messages);
+  for (const s of ["หาหูฟัง", "ร้าน B ถูกสุด", "b.example/x", "ถามก่อนหน้า", "ร้านไหนส่งฟรี"]) assert.ok(sent.includes(s), `the model sees ${s}`);
+  const b = await chat(DONE, "หาถูกกว่านี้", client);
+  assert.deepEqual([b.kind, b.title, b.size], ["search", "หาหูฟังถูกกว่า", "M"], "an unknown size falls back to M");
+  const none = await chat(DONE, "?", client);
+  assert.deepEqual([none.kind, none.text], ["answer", "Smith ยังไม่เข้าใจ ลองพิมพ์ใหม่อีกนิด"], "no tool call, even when asked again, is never a search");
+  assert.equal(client.calls.length, 4, "asked once more before giving up");
+});
+
+test("chat asks once more when the model ends without the reply tool, and uses plain text it wrote", async () => {
+  const noTool = { model: "claude-opus-5-5", stop_reason: "max_tokens", usage: usage(), content: [{ type: "thinking", thinking: "..." }] };
+  const retried = fakeClient(noTool, reply({ kind: "answer", text: "HAN RIVER 8 ลิตร จุเยอะสุด", title: "", steps: [], size: "S" }));
+  const a = await chat(DONE, "อันไหนจุเยอะสุด", retried);
+  assert.deepEqual([a.kind, a.text, retried.calls.length], ["answer", "HAN RIVER 8 ลิตร จุเยอะสุด", 2]);
+  const plain = { model: "claude-opus-5-5", stop_reason: "end_turn", usage: usage(), content: [{ type: "text", text: " ร้าน B ส่งฟรีครับ " }] };
+  const b = await chat(DONE, "ร้านไหนส่งฟรี", fakeClient(plain, plain));
+  assert.deepEqual([b.kind, b.text], ["answer", "ร้าน B ส่งฟรีครับ"], "plain text from the model is still an answer");
+  assert.ok(b.cost > costThb("claude-opus-5-5", usage()), "both calls are paid for");
+});
+
+test("a re-search run sees the previous round's result", async () => {
+  const client = fakeClient({ model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [] })] });
+  await runTask({ text: "หาหูฟัง\n\nรอบนี้: สีดำ", steps: "[]", size: "M" }, client, new Date(), () => {}, undefined, DONE);
+  const sent = JSON.stringify(client.calls[0].messages);
+  assert.ok(sent.includes("ร้าน B ถูกสุด") && sent.includes("b.example/x"));
+});
+
+test("shopping in Thailand: the prompts send the agent to Shopee, Lazada and a price-comparison site", async () => {
+  const run = fakeClient({ model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [] })] });
+  await runTask({ text: "หาหูฟัง", steps: "[]", size: "M" }, run);
+  for (const name of ["Shopee", "Lazada", "priceza.com"]) assert.ok(run.calls[0].system.includes(name), `the run prompt names ${name}`);
+  for (const rule of ["not travel, tickets or services", "unless the user names the shops", "never rank a price from a search result above"]) assert.ok(run.calls[0].system.includes(rule), rule);
+  const q = fakeClient({ model: "claude-opus-5-5", usage: usage(), content: [toolUse("quote", { doable: true, reason: "", title: "t", steps: ["s"], size: "M" })] });
+  await quote("หาหูฟัง", q);
+  for (const name of ["Shopee", "Lazada", "unless the user names the shops"]) assert.ok(q.calls[0].system.includes(name), `the plan says ${name}`);
+});
+
+test("the run prompt keeps answers with options to 2 sentences, without emoji", async () => {
+  const client = fakeClient({ model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [] })] });
+  await runTask({ text: "หาหูฟัง", steps: "[]", size: "M" }, client);
+  for (const rule of ["at most 2 short sentences", "No emoji", "no markdown"]) assert.ok(client.calls[0].system.includes(rule), rule);
+});
+
+test("chat replies are plain text: the prompt rules out markdown", async () => {
+  const client = fakeClient(reply({ kind: "answer", text: "ok", title: "", steps: [], size: "S" }));
+  await chat(DONE, "?", client);
+  assert.ok(client.calls[0].system.includes("no markdown"));
+});
+
+// ---------- chat before a job
+const PAST = [{ role: "user", text: "สวัสดี" }, { role: "smith", text: "สวัสดีครับ" }];
+const said = (input) => reply({ task: "", title: "", steps: [], size: "S", ...input });
+
+test("talk sends the recent chat and the new message in one low-effort call with only the reply tool, and returns an answer", async () => {
+  const client = fakeClient(said({ kind: "answer", text: "ผมช่วยค้นและเทียบข้อมูลจากเว็บให้ครับ" }));
+  const r = await talk(PAST, "ทำไรได้บ้าง", client);
+  assert.deepEqual([r.kind, r.text], ["answer", "ผมช่วยค้นและเทียบข้อมูลจากเว็บให้ครับ"]);
+  assert.ok(r.cost > 0);
+  const call = client.calls[0];
+  assert.deepEqual(call.tools.map((t) => t.name), ["reply"], "no web tools: free chat cannot search");
+  assert.equal(call.output_config.effort, "low");
+  assert.match(call.messages[0].content, /ผู้ใช้: สวัสดี[\s\S]*Smith: สวัสดีครับ[\s\S]*ทำไรได้บ้าง/);
+});
+
+test("talk turns a job into a quote for the full request", async () => {
+  const client = fakeClient(
+    said({ kind: "task", text: "หาให้ได้ครับ", task: "หาหูฟังตัดเสียง งบไม่เกิน 3,000 บาท", title: "หาหูฟังตัดเสียง", steps: ["ค้น Shopee", "เทียบราคา"], size: "M" }),
+    said({ kind: "task", text: "ได้ครับ", task: "", title: "", steps: ["ค้น"], size: "X" }),
+  );
+  const r = await talk(PAST, "ไม่เกิน 3,000", client);
+  assert.deepEqual({ kind: r.kind, doable: r.doable, reason: r.reason, task: r.task, title: r.title, size: r.size }, { kind: "task", doable: true, reason: "", task: "หาหูฟังตัดเสียง งบไม่เกิน 3,000 บาท", title: "หาหูฟังตัดเสียง", size: "M" });
+  const bare = await talk([], "หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุดแบบไม่มีกระเป๋า", client);
+  assert.equal(bare.task, "หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุดแบบไม่มีกระเป๋า", "an empty task falls back to the user's text");
+  assert.equal(bare.title, "หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุดแบบไม่มีกระเป๋า".slice(0, 40));
+  assert.equal(bare.size, "M", "an unknown size falls back to M");
+});
+
+test("talk asks once more when the model skips the tool, then answers with the plain text it wrote, never a job", async () => {
+  const plain = (text) => ({ model: "claude-opus-5-5", stop_reason: "end_turn", usage: usage(), content: text ? [{ type: "text", text }] : [] });
+  const client = fakeClient(plain(""), plain(" สวัสดีครับ "));
+  const r = await talk([], "หวัดดี", client);
+  assert.deepEqual([r.kind, r.text, client.calls.length], ["answer", "สวัสดีครับ", 2]);
+  const silent = await talk([], "หวัดดี", fakeClient(plain(""), plain("")));
+  assert.equal(silent.kind, "answer");
+  assert.ok(silent.text.length > 0, "a gentle line when the model said nothing");
+});
+
+test("the talk prompt names the prices, the note on AI knowledge, and current facts as jobs", async () => {
+  const client = fakeClient(said({ kind: "answer", text: "ok" }));
+  await talk([], "?", client);
+  const sys = client.calls[0].system;
+  for (const s of [`฿${SIZES.S.price}`, `฿${SIZES.M.price}`, `฿${SIZES.L.price}`, "(จากความรู้ของ AI ไม่มีลิงก์ยืนยัน)", "from memory", "Shopee", "no markdown"]) assert.ok(sys.includes(s), `the prompt says ${s}`);
+});
+
+test("the talk prompt gives the money facts, keeps the model from guessing a balance, and leaves the price to the card", async () => {
+  const client = fakeClient(said({ kind: "answer", text: "ok" }));
+  await talk([], "เติมเงินยังไง", client);
+  const sys = client.calls[0].system;
+  for (const s of [`A new account starts with ฿${config.startCredit} credit`, "เครดิต", "never state a balance", "help page", `within ${REFUND.windowHours} hours`, "2 or 3 example jobs", "do not repeat them"]) assert.ok(sys.includes(s), `the prompt says ${s}`);
 });

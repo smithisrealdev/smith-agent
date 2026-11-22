@@ -75,7 +75,7 @@ if (cmd === "doctor") {
   } else {
     console.log(t.status === "approved" ? `credited ฿${t.amount} to ${t.user_id}: balance ฿${t.credit}` : `turned down top-up ${a}`);
     // Tell a LINE user in their chat; offer to start the job that was waiting for credit. One push from the monthly quota.
-    if (!t.user_id.startsWith("web:") && config.lineToken) {
+    if (!t.user_id.includes(":") && config.lineToken) {
       const waiting = store.jobsOf(t.user_id, 10).find((j) => j.status === "quoted" && j.price <= t.credit);
       const msg = t.status === "approved"
         ? text(`เติมเครดิต ฿${t.amount} แล้ว เครดิตคงเหลือ ฿${t.credit}${waiting ? `\nงานที่รอไว้: ${waiting.title}` : ""}`, waiting ? [postback(`เริ่มงาน ฿${waiting.price}`, `start:${waiting.id}`)] : [])

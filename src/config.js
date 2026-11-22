@@ -39,8 +39,24 @@ export const config = {
   adminLineId: env.ADMIN_LINE_ID || "", // your own LINE user id: the bot tells you about top-ups, refunds to review and the daily cap
   maxUsers: whole("MAX_USERS", 0, 0), // accounts allowed in the test round (the invite code is shared, so it caps nothing); 0 = no limit
   // Manual top-up by PromptPay: users transfer, tap "โอนแล้ว", and staff approve after checking the bank app. Off when empty.
+  // The phone app. APPLE_BUNDLE_ID turns on Sign in with Apple and App Store purchases; the Apple key (team, key id,
+  // .p8 file) lets account deletion revoke Apple's token. Google Play purchases need the package and a service account JSON.
+  appleBundleId: env.APPLE_BUNDLE_ID || "",
+  appleTeamId: env.APPLE_TEAM_ID || "",
+  appleKeyId: env.APPLE_KEY_ID || "",
+  appleKeyFile: env.APPLE_PRIVATE_KEY_FILE || "",
+  playPackage: env.GOOGLE_PLAY_PACKAGE || "",
+  playServiceAccountFile: env.GOOGLE_SERVICE_ACCOUNT_FILE || "",
   topup: env.TOPUP_PROMPTPAY ? { promptpay: env.TOPUP_PROMPTPAY, name: env.TOPUP_NAME || "", amount: whole("TOPUP_AMOUNT", 50) } : null,
 };
+
+// Credit packs sold in the phone app (consumable products with these ids in App Store Connect and Play Console).
+// The store price is higher than the credit because the store keeps 15%; LINE and the web top up by PromptPay instead.
+export const PACKS = [
+  { id: "credit_50", price: 59, credit: 50 },
+  { id: "credit_100", price: 119, credit: 100 },
+  { id: "credit_250", price: 299, credit: 250 },
+];
 
 // The price the user sees before a job starts, and the work budget that price buys.
 // The prices can be changed with PRICE_S, PRICE_M and PRICE_L (whole baht); the work budget cannot.

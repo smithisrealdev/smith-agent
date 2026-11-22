@@ -35,7 +35,7 @@ export function openDb(path) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL, job_id INTEGER,
       amount INTEGER NOT NULL, -- credit in baht, + adds to the user's balance
-      kind TEXT NOT NULL,      -- start | grant | topup | hold | release | refund
+      kind TEXT NOT NULL,      -- start | grant | topup | purchase | hold | release | refund
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS topups (
@@ -50,10 +50,35 @@ export function openDb(path) {
       user_id TEXT NOT NULL,    -- the LINE user it signed in as
       created_at TEXT NOT NULL
     );
+    -- The chat before a job (order box and LINE), one row per message
+    CREATE TABLE IF NOT EXISTS talks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL,          -- user | smith
+      text TEXT NOT NULL,
+      job_id INTEGER,              -- a Smith reply that made a job card
+      cost REAL NOT NULL DEFAULT 0, -- THB a free answer cost (a job reply's cost is the job's quote_cost)
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS talks_user ON talks (user_id, id);
+    -- Credit packs bought in the app. A store transaction is spent once, so the row outlives the account (user_id '').
+    CREATE TABLE IF NOT EXISTS purchases (
+      platform TEXT NOT NULL,       -- ios | android
+      transaction_id TEXT NOT NULL, -- App Store transactionId, Play purchase token
+      user_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      credit INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (platform, transaction_id)
+    );
+    CREATE TABLE IF NOT EXISTS push_tokens (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL); -- Expo push tokens
+    CREATE TABLE IF NOT EXISTS apple_tokens (user_id TEXT PRIMARY KEY, refresh_token TEXT NOT NULL); -- revoked when the account is deleted
   `);
   // Databases made by an earlier version lack the newer columns: add them in place.
   const have = new Set(db.prepare("PRAGMA table_info(jobs)").all().map((c) => c.name));
-  for (const col of ["refund_reason", "refund_tag", "options", "codes", "coverage"]) if (!have.has(col)) db.exec(`ALTER TABLE jobs ADD COLUMN ${col} TEXT`);
+  // chat: the conversation under a result, as JSON [{role: "user"|"smith", text, at, job?}], job = a re-search it started
+  for (const col of ["refund_reason", "refund_tag", "options", "codes", "coverage", "chat"]) if (!have.has(col)) db.exec(`ALTER TABLE jobs ADD COLUMN ${col} TEXT`);
+  if (!have.has("parent_id")) db.exec("ALTER TABLE jobs ADD COLUMN parent_id INTEGER"); // the job a re-search continues
   return db;
 }
 
@@ -104,6 +129,44 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
       return job(Number(lastInsertRowid));
     },
 
+    // A re-search asked for in the chat: a quoted job that continues `parentId`. The first per original job is free,
+    // until one has run (a failed one gives the try back, as a failed job gives its credit back); a newer free card
+    // replaces an unstarted older one, so only one free re-search runs at a time.
+    addFollowUp(parentId, text, q) {
+      return tx(() => {
+        const p = job(parentId);
+        const size = SIZES[q.size] ? q.size : "M";
+        const free = p.parent_id == null && !one("SELECT 1 FROM jobs WHERE parent_id = ? AND price = 0 AND started_at IS NOT NULL AND status != 'failed'", parentId);
+        if (free) run("UPDATE jobs SET status = 'cancelled' WHERE parent_id = ? AND price = 0 AND status = 'quoted'", parentId);
+        const { lastInsertRowid } = run(
+          `INSERT INTO jobs (user_id, text, status, title, steps, size, reason, price, parent_id, created_at)
+           VALUES (?, ?, 'quoted', ?, ?, ?, '', ?, ?, ?)`,
+          p.user_id, text, q.title || "", JSON.stringify(q.steps || []), size, free ? 0 : SIZES[size].price, parentId, iso(),
+        );
+        return job(Number(lastInsertRowid));
+      });
+    },
+
+    // The chat under a result, appended in order. Each answer is a paid model call, so its cost counts as quoting cost.
+    // shortcut: the daily cost cap sums by the job's creation day, so chat on an older job counts on that day; give chat cost its own dated rows if old jobs get much chat.
+    addChat(jobId, entries, cost = 0) {
+      return tx(() => {
+        const chat = [...JSON.parse(job(jobId).chat || "[]"), ...entries];
+        run("UPDATE jobs SET chat = ?, quote_cost = quote_cost + ? WHERE id = ?", JSON.stringify(chat), cost, jobId);
+        return job(jobId);
+      });
+    },
+
+    // The chat before a job. `cost` is what the reply cost, kept on its row (the last entry) for the daily cap.
+    addTalk(userId, entries, cost = 0) {
+      tx(() => entries.forEach((e, i) =>
+        run("INSERT INTO talks (user_id, role, text, job_id, cost, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          userId, e.role, e.text, e.job ?? null, i === entries.length - 1 ? cost : 0, iso())));
+    },
+    talkOf: (userId, limit = 10) =>
+      db.prepare("SELECT role, text, created_at AS at, job_id AS job FROM talks WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit).reverse(),
+    talksSince: (userId, since) => one("SELECT COUNT(*) AS n FROM talks WHERE user_id = ? AND role = 'user' AND created_at >= ?", userId, since).n,
+
     // Hold the price before work starts. A second tap on "start" finds the job already running.
     start(userId, jobId) {
       return tx(() => {
@@ -113,7 +176,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         if (run("UPDATE users SET credit = credit - ? WHERE id = ? AND credit >= ?", j.price, userId, j.price).changes !== 1) {
           return { ok: false, reason: "credit", job: j };
         }
-        run("INSERT INTO ledger (user_id, job_id, amount, kind, created_at) VALUES (?, ?, ?, 'hold', ?)", userId, jobId, -j.price, iso());
+        if (j.price) run("INSERT INTO ledger (user_id, job_id, amount, kind, created_at) VALUES (?, ?, ?, 'hold', ?)", userId, jobId, -j.price, iso()); // a free re-search holds nothing
         run("UPDATE jobs SET status = 'running', started_at = ? WHERE id = ?", iso(), jobId);
         return { ok: true, job: job(jobId) };
       });
@@ -136,7 +199,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
           r.answer || "", JSON.stringify(r.sources || []), JSON.stringify(r.options || []), JSON.stringify(r.codes || []),
           r.coverage ? JSON.stringify(r.coverage) : "", r.evidence || "", r.error || "", jobId,
         );
-        if (!r.ok) move(j.user_id, j.price, "release", jobId);
+        if (!r.ok && j.price) move(j.user_id, j.price, "release", jobId);
         return job(jobId);
       });
     },
@@ -147,7 +210,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         const j = one("SELECT * FROM jobs WHERE id = ? AND user_id = ?", jobId, userId);
         if (!j) return { result: "not_found" };
         if (["refunded", "refund_review"].includes(j.status)) return { result: "already", job: j };
-        if (j.status !== "done") return { result: "not_charged", job: j };
+        if (j.status !== "done" || !j.price) return { result: "not_charged", job: j }; // a free re-search cost nothing to give back
         if (now() - Date.parse(j.finished_at) > REFUND.windowHours * 3600e3) return { result: "expired", job: j };
         // Price claims are counted apart from the rest: a wrong price is Smith's own mistake, so it gets more room.
         const tag = price ? "price" : "";
@@ -171,7 +234,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     forceRefund(jobId) {
       return tx(() => {
         const j = job(jobId);
-        if (!j || !["done", "refund_review"].includes(j.status)) return false;
+        if (!j || !["done", "refund_review"].includes(j.status) || !j.price) return false;
         run("UPDATE jobs SET status = 'refunded' WHERE id = ?", jobId);
         move(j.user_id, j.price, "refund", jobId);
         return true;
@@ -201,6 +264,25 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     pendingTopups: () => db.prepare("SELECT * FROM topups WHERE status = 'pending' ORDER BY id").all(),
     topupsOf: (userId, limit = 5) => db.prepare("SELECT * FROM topups WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit),
 
+    // A verified store purchase. `added` is 0 when this transaction was credited before (the app may send it again).
+    addPurchase(userId, { platform, transactionId, productId, credit }) {
+      this.user(userId);
+      return tx(() => {
+        const fresh = !one("SELECT 1 FROM purchases WHERE platform = ? AND transaction_id = ?", platform, transactionId);
+        if (fresh) {
+          run("INSERT INTO purchases (platform, transaction_id, user_id, product_id, credit, created_at) VALUES (?, ?, ?, ?, ?, ?)", platform, transactionId, userId, productId, credit, iso());
+          move(userId, credit, "purchase");
+        }
+        return { added: fresh ? credit : 0, credit: one("SELECT credit FROM users WHERE id = ?", userId).credit };
+      });
+    },
+    purchase: (platform, transactionId) => one("SELECT * FROM purchases WHERE platform = ? AND transaction_id = ?", platform, transactionId) ?? null,
+    addPushToken: (userId, token) => run("INSERT OR REPLACE INTO push_tokens (token, user_id, created_at) VALUES (?, ?, ?)", token, userId, iso()),
+    dropPushToken: (token) => run("DELETE FROM push_tokens WHERE token = ?", token),
+    pushTokensOf: (userId) => db.prepare("SELECT token FROM push_tokens WHERE user_id = ? ORDER BY created_at").all(userId).map((r) => r.token),
+    setAppleToken: (userId, token) => run("INSERT OR REPLACE INTO apple_tokens (user_id, refresh_token) VALUES (?, ?)", userId, token),
+    appleToken: (userId) => one("SELECT refresh_token FROM apple_tokens WHERE user_id = ?", userId)?.refresh_token ?? null,
+
     grant(userId, amount) {
       this.user(userId);
       tx(() => move(userId, amount, "grant"));
@@ -211,7 +293,8 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
     spentToday() {
       const day = 86400e3;
       const midnight = new Date(Math.floor((now().getTime() + 7 * 3600e3) / day) * day - 7 * 3600e3).toISOString();
-      return one("SELECT COALESCE(SUM(quote_cost + run_cost), 0) AS n FROM jobs WHERE created_at >= ?", midnight).n;
+      return one("SELECT COALESCE(SUM(quote_cost + run_cost), 0) AS n FROM jobs WHERE created_at >= ?", midnight).n
+        + one("SELECT COALESCE(SUM(cost), 0) AS n FROM talks WHERE created_at >= ?", midnight).n;
     },
 
     running: () => db.prepare("SELECT * FROM jobs WHERE status = 'running'").all(),
@@ -233,6 +316,10 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         run("DELETE FROM topups WHERE user_id = ?", userId);
         run("DELETE FROM users WHERE id = ?", userId);
         run("DELETE FROM sessions WHERE user_id = ?", userId);
+        run("DELETE FROM talks WHERE user_id = ?", userId);
+        run("DELETE FROM push_tokens WHERE user_id = ?", userId);
+        run("DELETE FROM apple_tokens WHERE user_id = ?", userId);
+        run("UPDATE purchases SET user_id = '' WHERE user_id = ?", userId);
         return files;
       });
     },

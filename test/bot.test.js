@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { openDb, makeStore } from "../src/db.js";
 import { createBot } from "../src/bot.js";
 import { createRunner } from "../src/runner.js";
+import { createChat } from "../src/chat.js";
 
 const QUOTE_M = { doable: true, reason: "", title: "หาตั๋วไปเชียงใหม่", steps: ["เปิดเว็บสายการบิน", "เทียบราคา"], size: "M", cost: 0.3 };
 const RESULT = {
@@ -12,20 +13,26 @@ const RESULT = {
   usage: { cost: 4.2, input_tokens: 9000, output_tokens: 800, searches: 3 },
 };
 
-function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, maxUsers, topup, alerts, refuse = () => false } = {}) {
+const CHAT_ANSWER = async () => ({ kind: "answer", text: "ร้าน B ส่งฟรี **ครับ**", title: "", steps: [], size: "S", cost: 0 });
+// Unless a test says otherwise, every message is a job and is quoted the old way.
+function setup({ quote = async () => QUOTE_M, talk = async (past, t) => ({ kind: "task", text: "", task: t, ...(await quote(t)) }), runTask = async () => RESULT, chat = CHAT_ANSWER, clock, publicUrl, dailyCostCap, maxUsers, topup, alerts, refuse = () => false, replyFails = () => false } = {}) {
   let t = clock ?? Date.parse("2026-11-20T03:00:00Z");
   const store = makeStore(openDb(":memory:"), { startCredit: 20, now: () => new Date(t) });
   const sent = [];
   const line = {
-    reply: async (token, messages) => sent.push({ to: "reply", messages }),
+    reply: async (token, messages) => {
+      if (replyFails(messages)) throw new Error("LINE reply 400: invalid reply token");
+      sent.push({ to: "reply", messages });
+    },
     push: async (to, messages) => {
       if (refuse(messages)) throw new Error("LINE push 400");
       sent.push({ to, messages });
     },
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
-  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, maxUsers, topup, alerts, log: { error() {} } });
-  return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
+  const chats = createChat({ store, chat, full: () => false, now: () => new Date(t) });
+  const bot = createBot({ store, line, talk, chats, runner, publicUrl, dailyCostCap, maxUsers, topup, alerts, now: () => new Date(t), log: { error() {} } });
+  return { store, bot, runner, chats, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
 const tap = (userId, data) => ({ type: "postback", replyToken: "r", source: { type: "user", userId }, postback: { data } });
@@ -45,7 +52,7 @@ test("quote first, charge only after a successful run", async () => {
   assert.equal(sent.at(-1).to, "u1");
   assert.match(lastText(sent), /เสร็จแล้ว: หาตั๋วไปเชียงใหม่[\s\S]*฿1,290[\s\S]*https:\/\/a\.example\/flight/);
   assert.doesNotMatch(lastText(sent), /ตัวเลือกที่เจอ/, "no options, no options section");
-  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"]);
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1", "ask:1"]);
   assert.equal(store.user("u1").credit, 11);
   const job = store.job(1);
   assert.equal(job.status, "done");
@@ -213,7 +220,7 @@ test("LINE gets the options as cards: product picture, name, price, the shop's l
   assert.deepEqual(b.body.contents.map((c) => c.text), ["Airline B 09:30"], "no empty text boxes");
   assert.equal(b.footer, undefined, "no page, no button");
   assert.doesNotMatch(result.text, /ตัวเลือกที่เจอ/, "the cards replace the list in the text");
-  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"], "the refund button stays on the last message");
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1", "ask:1"], "the refund button stays on the last message");
 });
 
 test("if LINE refuses the cards, the result still arrives as text with the options listed", async () => {
@@ -222,7 +229,7 @@ test("if LINE refuses the cards, the result still arrives as text with the optio
   await bot.handle(tap("U1", "start:1"));
   assert.deepEqual(sent.at(-1).messages.map((m) => m.type), ["text"]);
   assert.match(lastText(sent), /ตัวเลือกที่เจอ\n1\. Airline A 07:05 · ฿1,290/);
-  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"]);
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1", "ask:1"]);
 });
 
 test("LINE card links are fully percent-encoded, and blank text is left out", async () => {
@@ -286,7 +293,7 @@ test("'ผลล่าสุด' sends the newest finished result again as a rep
   assert.equal(again.to, "reply", "a reply, which does not count against the monthly quota");
   assert.match(again.messages.at(-1).text, /เสร็จแล้ว: หาตั๋วไปเชียงใหม่[\s\S]*฿1,290[\s\S]*SAVE10/);
   assert.match(again.messages.at(-1).text, /เช็กเมื่อ 10:/, "it says when it was checked, not when it was asked for again");
-  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1"]);
+  assert.deepEqual(actions(sent), ["refund:1:price", "refund:1", "ask:1"]);
 });
 
 test("'ผลล่าสุด' says so when the last job is still running, when there is nothing yet, and shows a failure as a failure", async () => {
@@ -376,4 +383,209 @@ test("without ADMIN_LINE_ID, or when LINE refuses, alerts do nothing and never b
   await createAlerts().send("x");
   const failing = createAlerts({ push: async () => { throw new Error("LINE 429"); }, adminId: "Uadmin", log: { error() {} } });
   await failing.send("x"); // resolves
+});
+
+test("a free re-search pushed to LINE carries no refund buttons", async () => {
+  const { store, bot, runner, sent } = setup();
+  const u = store.user("u1").id;
+  const root = store.addQuote(u, "x", QUOTE_M);
+  await runner.run(store.start(u, root.id).job);
+  const free = store.addFollowUp(root.id, "x\n\nรอบนี้: y", { title: "y", steps: [], size: "M" });
+  const done = await runner.run(store.start(u, free.id).job);
+  await bot.notify(done.job, done.r);
+  assert.match(lastText(sent), /เสร็จแล้ว/);
+  assert.deepEqual(actions(sent), ["ask:2"], "it can be asked about, but has nothing to refund");
+});
+
+test("a result offers ถามต่อ; after tapping it the next message goes to that job's chat, not a new quote", async () => {
+  const asked = [];
+  const { store, bot, sent } = setup({ chat: async (job, text) => (asked.push([job.id, text]), CHAT_ANSWER()) });
+  await bot.handle(say("u1", "หาตั๋วไปเชียงใหม่ศุกร์นี้"));
+  await bot.handle(tap("u1", "start:1"));
+  assert.ok(actions(sent).includes("ask:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  assert.match(lastText(sent), /พิมพ์คำถาม[\s\S]*ถามได้อีก 10 ข้อ/);
+  assert.deepEqual(actions(sent), ["new:0"]);
+  await bot.handle(say("u1", "ร้านไหนส่งฟรี"));
+  assert.deepEqual(asked, [[1, "ร้านไหนส่งฟรี"]]);
+  assert.equal(lastText(sent), "ร้าน B ส่งฟรี ครับ", "markdown asterisks are stripped");
+  assert.equal(sent.at(-1).to, "reply", "a reply, which LINE does not count against the push quota");
+  assert.deepEqual(actions(sent), ["new:0"]);
+  assert.equal(store.jobsOf("u1").length, 1, "no new job was quoted");
+  await bot.handle(say("u1", "เครดิต"));
+  assert.match(lastText(sent), /เครดิตคงเหลือ/, "commands still work in chat mode");
+  await bot.handle(say("u1", "ผลล่าสุด"));
+  assert.match(lastText(sent), /เสร็จแล้ว: หาตั๋วไปเชียงใหม่/);
+  await bot.handle(say("u1", "แล้วร้านไหนถูกสุด"));
+  assert.deepEqual(asked.at(-1), [1, "แล้วร้านไหนถูกสุด"], "and chat mode survives them");
+});
+
+test("a search reply offers ค้นใหม่ฟรี, which starts the free follow-up, and the next question is about its result", async () => {
+  const asked = [];
+  const SEARCH = { kind: "search", text: "จะค้นที่ถูกกว่า", title: "ตั๋ว**ถูกกว่า**", steps: ["ค้น 3 สายการบิน"], size: "M", cost: 0 };
+  const { store, bot, sent } = setup({ chat: async (job, text) => (asked.push(job.id), asked.length === 1 ? SEARCH : CHAT_ANSWER()) });
+  await bot.handle(say("u1", "หาตั๋วไปเชียงใหม่"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  await bot.handle(say("u1", "หาที่ถูกกว่านี้"));
+  assert.match(lastText(sent), /จะค้นที่ถูกกว่า[\s\S]*ตั๋วถูกกว่า[\s\S]*1\. ค้น 3 สายการบิน/);
+  assert.deepEqual(actions(sent), ["start:2", "new:0"]);
+  assert.equal(sent.at(-1).messages.at(-1).quickReply.items[0].action.label, "ค้นใหม่ฟรี");
+  const credit = store.user("u1").credit;
+  await bot.handle(tap("u1", "start:2"));
+  assert.equal(store.job(2).status, "done");
+  assert.equal(store.user("u1").credit, credit, "free");
+  assert.deepEqual(actions(sent), ["ask:2"]);
+  await bot.handle(say("u1", "ร้านไหนส่งฟรี"));
+  assert.deepEqual(asked, [1, 2], "a question typed after the new result is about the new job, not the old one");
+});
+
+test("งานใหม่ ends chat mode, and so do 10 quiet minutes", async () => {
+  let asks = 0;
+  const { store, bot, sent, later } = setup({ chat: async () => (asks++, CHAT_ANSWER()) });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  await bot.handle(tap("u1", "new:0"));
+  assert.match(lastText(sent), /งานใหม่/);
+  await bot.handle(say("u1", "หาที่พักภูเก็ต"));
+  assert.equal(asks, 0);
+  assert.equal(store.jobsOf("u1").length, 2, "a new quote");
+  await bot.handle(tap("u1", "ask:1"));
+  later(9 / 60);
+  await bot.handle(say("u1", "ถามอีกข้อ"));
+  assert.equal(asks, 1, "9 minutes after the tap it is still chat");
+  later(9 / 60);
+  await bot.handle(say("u1", "อีกข้อ"));
+  assert.equal(asks, 2, "the 10 minutes count from the last message, not from the tap");
+  later(11 / 60);
+  await bot.handle(say("u1", "หาร้านอาหาร"));
+  assert.equal(asks, 2, "chat mode ended after 10 quiet minutes");
+  assert.equal(store.jobsOf("u1").length, 3);
+});
+
+test("ถามต่อ is refused for another user's job, and u2's next message stays u2's own", async () => {
+  let asks = 0;
+  const { store, bot, sent } = setup({ chat: async () => (asks++, CHAT_ANSWER()) });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u2", "ask:1"));
+  assert.match(lastText(sent), /ไม่พบงานนี้/);
+  await bot.handle(say("u2", "หาที่พักภูเก็ต"));
+  assert.equal(asks, 0);
+  assert.equal(store.jobsOf("u2").length, 1, "u2's message is u2's own quote");
+});
+
+test("ถามต่อ is refused for a failed job", async () => {
+  const { bot, sent } = setup({ runTask: async () => ({ ok: false, error: "x", summary: "ไม่เจอ", sources: [] }) });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  assert.match(lastText(sent), /ถามต่อไม่ได้/);
+});
+
+test("ถามต่อ on a job with no questions left is refused at the tap", async () => {
+  const { store, bot, sent } = setup();
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  store.addChat(1, Array.from({ length: 10 }, () => ({ role: "user", text: "q" })));
+  await bot.handle(tap("u1", "ask:1"));
+  assert.match(lastText(sent), /ถามครบ 10 ข้อแล้ว/);
+  await bot.handle(say("u1", "หาที่พักภูเก็ต"));
+  assert.equal(store.jobsOf("u1").length, 2, "the next message is a new job, not thrown away");
+});
+
+test("typing งานใหม่ in chat mode ends it without asking the model", async () => {
+  let asks = 0;
+  const { store, bot, sent } = setup({ chat: async () => (asks++, CHAT_ANSWER()) });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  assert.match(lastText(sent), /งานใหม่/, "the prompt says how to get out");
+  await bot.handle(say("u1", "งานใหม่"));
+  assert.equal(asks, 0);
+  await bot.handle(say("u1", "หาที่พักภูเก็ต"));
+  assert.equal(asks, 0);
+  assert.equal(store.jobsOf("u1").length, 2);
+});
+
+test("a second quick message is turned away with a clear note and a way out, and shares the app's one-at-a-time guard", async () => {
+  let release;
+  const gate = new Promise((r) => (release = r));
+  let calls = 0;
+  // A second call that reaches the model opens the gate, so a missing guard fails the test instead of hanging it.
+  const { bot, chats, sent } = setup({ chat: async () => (++calls > 1 && release(), await gate, CHAT_ANSWER()) });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  const fromApp = chats.ask(1, "ถามจากในแอป"); // the web app asking on the same job, through the same shared rules
+  await bot.handle(say("u1", "ร้านไหนส่งฟรี"));
+  assert.match(lastText(sent), /ส่งคำถามนี้อีกครั้งหลังได้คำตอบ/);
+  assert.deepEqual(actions(sent), ["new:0"]);
+  assert.equal(calls, 1);
+  release();
+  assert.ok((await fromApp).job);
+});
+
+test("when the model fails, the user hears so, with a way out", async () => {
+  const { bot, sent } = setup({ chat: async () => { throw new Error("model timed out"); } });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  await bot.handle(say("u1", "ร้านไหนส่งฟรี"));
+  assert.match(lastText(sent), /ขอโทษครับ/);
+  assert.deepEqual(actions(sent), ["new:0"]);
+});
+
+test("when the reply token ran out while Smith answered, the answer is pushed instead", async () => {
+  const { bot, sent } = setup({ replyFails: (messages) => messages.at(-1).text?.startsWith("ร้าน B") });
+  await bot.handle(say("u1", "หาตั๋ว"));
+  await bot.handle(tap("u1", "start:1"));
+  await bot.handle(tap("u1", "ask:1"));
+  await bot.handle(say("u1", "ร้านไหนส่งฟรี"));
+  assert.equal(sent.at(-1).to, "u1");
+  assert.equal(lastText(sent), "ร้าน B ส่งฟรี ครับ");
+});
+
+// ---------- chat before a job
+test("a question gets a free text answer in LINE, with no job card", async () => {
+  const { store, bot, sent } = setup({ talk: async () => ({ kind: "answer", text: "ผมช่วยค้นและเทียบข้อมูลจากเว็บให้ **ครับ**", cost: 0.01 }) });
+  await bot.handle(say("u1", "ทำไรได้บ้าง"));
+  assert.equal(lastText(sent), "ผมช่วยค้นและเทียบข้อมูลจากเว็บให้ ครับ");
+  assert.equal(actions(sent), undefined);
+  assert.equal(store.jobsOf("u1").length, 0);
+  assert.deepEqual(store.talkOf("u1").map((e) => e.role), ["user", "smith"]);
+});
+
+test("a job reply in LINE is today's quote card, for the full request", async () => {
+  const { store, bot, sent } = setup({ talk: async () => ({ kind: "task", text: "หาให้ได้ครับ", task: "หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุด", ...QUOTE_M }) });
+  await bot.handle(say("u1", "ถูกสุดนะ"));
+  assert.match(lastText(sent), /งานนี้: หาตั๋วไปเชียงใหม่/);
+  assert.match(lastText(sent), /คำขอ: หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุด/, "the card says what Smith will work on, since it differs from what was typed");
+  assert.deepEqual(actions(sent), ["start:1", "cancel:1"]);
+  assert.equal(store.job(1).text, "หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุด");
+  await bot.handle(say("u2", "หาตั๋วไปเชียงใหม่ศุกร์นี้ ถูกสุด"));
+  assert.doesNotMatch(lastText(sent), /คำขอ:/, "no request line when it is what the user typed");
+});
+
+test("LINE turns a refused message into a short line", async () => {
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const { bot, sent } = setup({ talk: async (past, t) => (t === "q1" && (await gate), { kind: "answer", text: "ok", cost: 0 }) });
+  await bot.handle(say("u1", "ก".repeat(1001)));
+  assert.match(lastText(sent), /ไม่เกิน 1,000 ตัวอักษร/);
+  const first = bot.handle(say("u1", "q1"));
+  await bot.handle(say("u1", "q2"));
+  assert.match(lastText(sent), /กำลังตอบข้อความก่อนหน้า/);
+  release();
+  await first;
+  assert.equal(lastText(sent), "ok");
+});
+
+test("when the reply token ran out while Smith quoted, the job card is pushed instead", async () => {
+  const { bot, sent } = setup({ replyFails: (messages) => /งานนี้:/.test(messages.at(-1)?.text || "") });
+  await bot.handle(say("u1", "หาตั๋วไปเชียงใหม่"));
+  assert.equal(sent.at(-1).to, "u1");
+  assert.match(lastText(sent), /งานนี้: หาตั๋วไปเชียงใหม่/);
+  assert.deepEqual(actions(sent), ["start:1", "cancel:1"]);
 });
