@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { createAlerts } from "../src/alerts.js";
 import assert from "node:assert/strict";
 import { openDb, makeStore } from "../src/db.js";
 import { createBot } from "../src/bot.js";
@@ -11,7 +12,7 @@ const RESULT = {
   usage: { cost: 4.2, input_tokens: 9000, output_tokens: 800, searches: 3 },
 };
 
-function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, maxUsers, topup, refuse = () => false } = {}) {
+function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, clock, publicUrl, dailyCostCap, maxUsers, topup, alerts, refuse = () => false } = {}) {
   let t = clock ?? Date.parse("2026-11-20T03:00:00Z");
   const store = makeStore(openDb(":memory:"), { startCredit: 20, now: () => new Date(t) });
   const sent = [];
@@ -23,7 +24,7 @@ function setup({ quote = async () => QUOTE_M, runTask = async () => RESULT, cloc
     },
   };
   const runner = createRunner({ store, runTask, screenshot: async () => false, log: { error() {} } });
-  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, maxUsers, topup, log: { error() {} } });
+  const bot = createBot({ store, line, quote, runner, publicUrl, dailyCostCap, maxUsers, topup, alerts, log: { error() {} } });
   return { store, bot, runner, sent, later: (hours) => (t += hours * 3600e3) };
 }
 const say = (userId, text, type = "user") => ({ type: "message", replyToken: "r", source: { type, userId }, message: { type: "text", text } });
@@ -340,4 +341,39 @@ test("without a PromptPay number, \"โอนแล้ว\" is an ordinary task 
   assert.equal(store.pendingTopups().length, 0);
   await bot.handle(say("U1", "เครดิต"));
   assert.match(lastText(sent), /รหัสผู้ใช้/);
+});
+
+test("the founder hears in LINE about a new top-up (once per request), a refund sent to review, and the daily cap (once a day)", async () => {
+  const told = [];
+  const alerts = createAlerts({ push: async (to, m) => told.push([to, m[0].text]), adminId: "Uadmin" });
+  const { store, bot, later } = setup({ topup: { promptpay: "0812345678", name: "", amount: 50 }, alerts, dailyCostCap: 1 });
+  await bot.handle(say("U1", "โอนแล้ว"));
+  await bot.handle(say("U1", "โอนแล้ว"));
+  assert.equal(told.length, 1, "asking twice is one request, one alert");
+  assert.match(told[0][1], /มีคำขอเติมเครดิต ฿50 \(คำขอที่ 1 · หมายเหตุ SM[0-9A-F]{5}\)[\s\S]*node src\/cli.js topup 1/);
+  assert.equal(told[0][0], "Uadmin");
+  store.addQuote("U1", "x", { doable: true, title: "t", steps: [], size: "M", cost: 2 }); // spend past the ฿1 cap
+  await bot.handle(say("U1", "หาตั๋ว"));
+  await bot.handle(say("U1", "หาตั๋วอีก"));
+  assert.equal(told.filter(([, t]) => /ถึงเพดาน/.test(t)).length, 1, "the cap alert goes out once a day");
+});
+
+test("a refund that goes to review alerts the founder", async () => {
+  const told = [];
+  const alerts = createAlerts({ push: async (to, m) => told.push(m[0].text), adminId: "Uadmin" });
+  const { store, bot } = setup({ alerts });
+  store.grant("U1", 100);
+  for (let i = 1; i <= 4; i++) {
+    await bot.handle(say("U1", `งาน ${i}`));
+    await bot.handle(tap("U1", `start:${i}`));
+    await bot.handle(tap("U1", `refund:${i}`));
+  }
+  assert.equal(told.length, 1, "three refunds a month are automatic; the fourth goes to a person");
+  assert.match(told[0], /คำขอคืนเงินรอตรวจ[\s\S]*node src\/cli.js queue/);
+});
+
+test("without ADMIN_LINE_ID, or when LINE refuses, alerts do nothing and never break the user's request", async () => {
+  await createAlerts().send("x");
+  const failing = createAlerts({ push: async () => { throw new Error("LINE 429"); }, adminId: "Uadmin", log: { error() {} } });
+  await failing.send("x"); // resolves
 });

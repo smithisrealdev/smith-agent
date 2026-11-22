@@ -3,6 +3,7 @@ import { readFile, rm } from "node:fs/promises";
 import { join, extname, basename } from "node:path";
 import { SIZES, REFUND } from "./config.js";
 import { payRef } from "./db.js";
+import { createAlerts, ALERT } from "./alerts.js";
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -41,8 +42,12 @@ export function jobView(j) {
 
 // The phone app's API. A phone keeps a random token and the server stores only its hash (the "key").
 // Without LINE Login the key is the account; with it, the key must be signed in to a LINE user first.
-export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, maxUsers = 0, topup = null, now = () => new Date(), log = console }) {
-  const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
+export function createWeb({ store, quote, runner, lineLogin = null, notify = null, publicDir = "public", evidenceDir = "data/evidence", inviteCode = "", quotesPerHour = 30, dailyCostCap = 0, maxUsers = 0, topup = null, alerts = createAlerts(), now = () => new Date(), log = console }) {
+  const full = () => {
+    const over = dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
+    if (over) alerts.once("cap", ALERT.cap(dailyCostCap));
+    return over;
+  };
   const json = (res, status, body) => {
     res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     res.end(JSON.stringify(body));
@@ -98,7 +103,9 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
 
     if (req.method === "POST" && path === "/api/topup") {
       if (!topup) return json(res, 404, { error: "not_found" });
-      return json(res, 200, { topup: store.requestTopup(userId, topup.amount), credit: credit(userId) });
+      const t = store.requestTopup(userId, topup.amount);
+      if (t.fresh) alerts.send(ALERT.topup(t, payRef(userId)));
+      return json(res, 200, { topup: t, credit: credit(userId) });
     }
 
     if (req.method === "DELETE" && path === "/api/me") {
@@ -140,6 +147,7 @@ export function createWeb({ store, quote, runner, lineLogin = null, notify = nul
       const { reasons = [], note = "" } = await body(req);
       const why = [...(Array.isArray(reasons) ? reasons : []), note].map((s) => String(s).trim()).filter(Boolean).join(" · ").slice(0, 500);
       const r = store.refund(userId, id, why, { price: Array.isArray(reasons) && reasons.includes(REFUND.priceReason) });
+      if (r.result === "review") alerts.send(ALERT.review(r.job, why));
       return json(res, 200, { result: r.result, job: r.job ? jobView(store.job(id)) : null, credit: credit(userId) });
     }
 

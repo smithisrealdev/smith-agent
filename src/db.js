@@ -185,7 +185,7 @@ export function makeStore(db, { startCredit, now = () => new Date() }) {
         const waiting = one("SELECT * FROM topups WHERE user_id = ? AND status = 'pending'", userId);
         if (waiting) return waiting;
         const { lastInsertRowid } = run("INSERT INTO topups (user_id, amount, status, created_at) VALUES (?, ?, 'pending', ?)", userId, amount, iso());
-        return one("SELECT * FROM topups WHERE id = ?", Number(lastInsertRowid));
+        return { ...one("SELECT * FROM topups WHERE id = ?", Number(lastInsertRowid)), fresh: true }; // fresh: staff should hear about it
       });
     },
     // Staff checked the bank app: credit the money (approve) or turn the claim down. Only a waiting request changes.

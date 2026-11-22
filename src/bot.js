@@ -1,6 +1,7 @@
 import { SIZES, REFUND } from "./config.js";
 import { text, postback, image, optionCards } from "./line.js";
 import { payRef } from "./db.js";
+import { createAlerts, ALERT } from "./alerts.js";
 
 const baht = (n) => `฿${n}`;
 const clock = (at) => new Date(at ?? Date.now()).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
@@ -32,21 +33,26 @@ const resultOf = (j) => ({
   coverage: j.coverage ? JSON.parse(j.coverage) : null,
 });
 
-export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, maxUsers = 0, topup = null, log = console }) {
+export function createBot({ store, line, quote, runner, publicUrl = "", dailyCostCap = 0, maxUsers = 0, topup = null, alerts = createAlerts(), log = console }) {
   // How to pay, in one message: where to transfer, then the word that tells staff to check.
   const howToPay = (userId) => topup
     ? `เติมเครดิต ${baht(topup.amount)}: โอนไปที่ PromptPay ${topup.promptpay}${topup.name ? ` (${topup.name})` : ""} ใส่หมายเหตุการโอนว่า ${payRef(userId)} แล้วพิมพ์ "โอนแล้ว" ทีมงานตรวจยอดแล้วเติมให้ภายใน 1 วันทำการ`
     : `ช่วงทดลอง ทักทีมงานเพื่อเติมเครดิต พิมพ์ "เครดิต" เพื่อดูรหัสผู้ใช้`;
-  const full = () => dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
+  const full = () => {
+    const over = dailyCostCap > 0 && store.spentToday() >= dailyCostCap; // today's Claude budget is used up
+    if (over) alerts.once("cap", ALERT.cap(dailyCostCap));
+    return over;
+  };
   async function onText(userId, replyToken, msg) {
     const user = store.user(userId);
     if (msg.trim() === "เครดิต") {
       // Testers send this id to staff, who add credit with `node src/cli.js grant <id> <baht>`.
-      return line.reply(replyToken, [text(topup ? `เครดิตคงเหลือ ${baht(user.credit)}\n${howToPay(userId)}` : `เครดิตคงเหลือ ${baht(user.credit)}\nรหัสผู้ใช้ (ส่งให้ทีมงานเมื่อขอเติมเครดิต)\n${userId}`)]);
+      return line.reply(replyToken, [text(topup ? `เครดิตคงเหลือ ${baht(user.credit)}\n${howToPay(userId)}\nรหัสผู้ใช้ ${userId}` : `เครดิตคงเหลือ ${baht(user.credit)}\nรหัสผู้ใช้ (ส่งให้ทีมงานเมื่อขอเติมเครดิต)\n${userId}`)]);
     }
     if (msg.trim() === "ผลล่าสุด") return line.reply(replyToken, await latest(userId));
     if (msg.trim() === "โอนแล้ว" && topup) {
       const t = store.requestTopup(userId, topup.amount);
+      if (t.fresh) alerts.send(ALERT.topup(t, payRef(userId)));
       return line.reply(replyToken, [text(`รับแจ้งแล้ว (คำขอที่ ${t.id} · หมายเหตุการโอน ${payRef(userId)}) ทีมงานจะตรวจยอด ${baht(t.amount)} ในบัญชีแล้วเติมเครดิตให้ภายใน 1 วันทำการ เติมแล้วจะแจ้งในแชทนี้\nถ้ายังไม่ได้โอน คำขอจะถูกปฏิเสธ`)]);
     }
     if (full()) return line.reply(replyToken, [text(FULL)]); // every quote is a paid Claude call
@@ -83,6 +89,7 @@ export function createBot({ store, line, quote, runner, publicUrl = "", dailyCos
     if (action === "refund") {
       const price = kind === "price";
       const r = store.refund(userId, id, price ? REFUND.priceReason : "", { price });
+      if (r.result === "review") alerts.send(ALERT.review(r.job, price ? REFUND.priceReason : "ผลไม่ตรง (จาก LINE)"));
       const msg = {
         refunded: `คืนเงิน ${baht(r.job?.price)} เป็นเครดิตแล้ว${price ? " ราคาไม่ตรงเป็นความผิดของ Smith ขอโทษด้วยครับ" : ""}\nเครดิตคงเหลือ ${baht(store.user(userId).credit)}\nขอบคุณที่บอก เราจะเอาไปปรับ Smith`,
         review: `เดือนนี้ใช้สิทธิ์คืนเงิน${price ? "กรณีราคาไม่ตรง" : ""}อัตโนมัติครบ ${price ? REFUND.priceAutoPerMonth : REFUND.autoPerMonth} ครั้งแล้ว ทีมงานจะตรวจให้ภายใน 1 วันทำการ`,

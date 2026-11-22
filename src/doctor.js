@@ -51,6 +51,8 @@ export async function checkSetup(env, config, sizes, probe) {
       if (r.limit) add(r.used >= r.limit * 0.8 ? "warn" : "ok", `ข้อความ push เดือนนี้ใช้ไป ${r.used} จาก ${r.limit} (ตัวเลขจาก LINE)`);
     }
     if (!config.publicUrl) add("warn", "ไม่มี PUBLIC_URL ภาพหน้าจอและรูปสินค้าจะไม่ขึ้นใน LINE");
+    if (!config.adminLineId) add("warn", "ยังไม่ได้ตั้ง ADMIN_LINE_ID คุณจะไม่ได้ข้อความแจ้งเมื่อมีคนแจ้งโอนหรือขอคืนเงินที่ต้องตรวจ (พิมพ์ \"เครดิต\" หาบอทเพื่อดูรหัสของคุณ)");
+    else add("ok", "แจ้งเตือนผู้ก่อตั้งทาง LINE เปิดอยู่");
   }
 
   // Screenshots are evidence; without Playwright jobs still run, with links only.

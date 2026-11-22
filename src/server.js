@@ -8,6 +8,7 @@ import { saveLogos } from "./logo.js";
 import { saveImages } from "./image.js";
 import { createRunner } from "./runner.js";
 import { createBot } from "./bot.js";
+import { createAlerts } from "./alerts.js";
 import { createWeb } from "./web.js";
 import { createLineLogin } from "./linelogin.js";
 import { createAdmin } from "./admin.js";
@@ -17,15 +18,17 @@ import { dirname, join } from "node:path";
 const db = openDb(config.dbPath);
 const store = makeStore(db, config);
 const runner = createRunner({ store, runTask, screenshot, saveLogos, saveImages, evidenceDir: config.evidenceDir });
+// Messages to the founder go out through the bot's channel, when LINE is set up and ADMIN_LINE_ID names them.
+const alerts = createAlerts({ push: config.lineToken ? lineClient(config.lineToken).push : null, adminId: config.adminLineId });
 const bot = config.lineSecret && config.lineToken
-  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup })
+  ? createBot({ store, line: lineClient(config.lineToken), quote, runner, publicUrl: config.publicUrl, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup, alerts })
   : null;
 const lineLogin = config.lineLoginId && config.lineLoginSecret && config.publicUrl
   ? createLineLogin({ channelId: config.lineLoginId, channelSecret: config.lineLoginSecret, callbackUrl: `${config.publicUrl}/auth/line/callback` })
   : null;
 const web = createWeb({
   store, quote, runner, lineLogin, notify: bot?.notify,
-  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup,
+  evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup, alerts,
 });
 
 if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");

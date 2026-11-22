@@ -8,6 +8,7 @@ import { openDb, makeStore } from "../src/db.js";
 import { createRunner } from "../src/runner.js";
 import { createWeb } from "../src/web.js";
 import { createLineLogin } from "../src/linelogin.js";
+import { createAlerts } from "../src/alerts.js";
 
 const QUOTE = { doable: true, reason: "", title: "เทียบราคาหูฟัง", steps: ["ค้น 3 ร้าน", "เทียบราคา"], size: "M", cost: 0.3 };
 const RESULT = { ok: true, answer: "ร้าน B ถูกสุด ฿8,990", summary: "เจอแล้ว", sources: [{ title: "B", url: "https://b.example/x" }], bestUrl: "", usage: { cost: 3 } };
@@ -367,4 +368,15 @@ test("PromptPay top-up: off unless set; the app shows where to pay; one request 
   assert.equal(first.body.credit, 20, "nothing is credited until staff approve");
   assert.equal((await s.call(A, "POST", "/api/topup", {})).body.topup.id, first.body.topup.id, "tapping again returns the waiting request");
   assert.equal((await s.call(A, "GET", "/api/ledger")).body.topups[0].status, "pending");
+});
+
+test("from the app, a new top-up and a refund sent to review alert the founder; a repeated tap does not", async (t) => {
+  const told = [];
+  const alerts = createAlerts({ push: async (to, m) => told.push(m[0].text), adminId: "Uadmin" });
+  const s = await start({ topup: { promptpay: "0812345678", name: "", amount: 50 }, alerts });
+  t.after(s.close);
+  await s.call(A, "POST", "/api/topup", {});
+  await s.call(A, "POST", "/api/topup", {});
+  assert.equal(told.length, 1);
+  assert.match(told[0], /มีคำขอเติมเครดิต ฿50/);
 });
