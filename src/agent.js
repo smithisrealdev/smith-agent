@@ -3,10 +3,19 @@ import { config, SIZES, MODEL_PRICES, SEARCH_USD } from "./config.js";
 import { logoHost } from "./logo.js";
 
 let shared;
-const getClient = () => (shared ??= new Anthropic()); // reads ANTHROPIC_API_KEY
+const getClient = () => (shared ??= config.openrouterKey
+  ? new Anthropic({ baseURL: "https://openrouter.ai/api", apiKey: null, authToken: config.openrouterKey })
+  : new Anthropic()); // reads ANTHROPIC_API_KEY
+
+// OpenRouter names Claude models "anthropic/claude-opus-5.5" where Anthropic says "claude-opus-5-5".
+export const modelId = (model, openrouter = Boolean(config.openrouterKey)) =>
+  !openrouter || model.includes("/") ? model : `anthropic/${model.replace(/-(\d+)-(\d+)$/, "-$1.$2")}`;
+// ...and the price table is keyed by Anthropic's names.
+const priceKey = (model = "") => model.replace(/^anthropic\//, "").replace(/-(\d+)\.(\d+)$/, "-$1-$2");
 
 // If the model declines on safety grounds, the API re-runs the request on Anthropic's recommended fallback model.
-const FALLBACK = { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" };
+// OpenRouter's "fallbacks" means something else (a list of models) and refuses this value, so it is left out there.
+const FALLBACK = config.openrouterKey ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" };
 
 const QUOTE_SYSTEM = `You price tasks for Smith, an agent that works for Thai users through LINE.
 Smith can only search the web and read public web pages. It cannot log in, pay, book, fill in forms, call anyone or act in the physical world.
@@ -96,7 +105,7 @@ const REPORT_TOOL = {
 
 // What one response cost, in baht, at list prices.
 export function costThb(model, u = {}) {
-  const [input, output, cacheRead] = MODEL_PRICES[model] || MODEL_PRICES[config.model] || MODEL_PRICES["claude-opus-5-5"];
+  const [input, output, cacheRead] = MODEL_PRICES[priceKey(model)] || MODEL_PRICES[config.model] || MODEL_PRICES["claude-opus-5-5"];
   const usd =
     ((u.input_tokens || 0) * input +
       (u.cache_creation_input_tokens || 0) * input * 1.25 +
@@ -140,7 +149,7 @@ export function stepOf(block) {
 
 export async function quote(text, client = getClient()) {
   const res = await client.beta.messages.create({
-    model: config.model,
+    model: modelId(config.model),
     max_tokens: 4000,
     ...FALLBACK,
     output_config: { effort: "low" },
@@ -159,7 +168,7 @@ export async function runTask(job, client = getClient(), today = new Date(), onP
   const date = today.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
   const steps = JSON.parse(job.steps || "[]").map((s, i) => `${i + 1}. ${s}`).join("\n");
   const params = {
-    model: config.model,
+    model: modelId(config.model),
     max_tokens: 16000,
     ...FALLBACK,
     output_config: { effort: "medium" },

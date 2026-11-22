@@ -352,7 +352,8 @@ node --disable-warning=ExperimentalWarning src/cli.js refund <เลขงาน
 
 | ค่า | ค่าเริ่มต้น | ใช้ทำอะไร |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | ว่าง | ต้องมี ใช้เรียก Claude |
+| `ANTHROPIC_API_KEY` | ว่าง | ใช้เรียก Claude ตรงจาก Anthropic ต้องมีอย่างใดอย่างหนึ่งกับ `OPENROUTER_API_KEY` |
+| `OPENROUTER_API_KEY` | ว่าง | ถ้าตั้ง Smith เรียก Claude ผ่าน OpenRouter แทน (ใช้เครดิต OpenRouter ราคาโมเดลเท่ากัน เครื่องมือค้นและอ่านเว็บแบบเดียวกัน) ชื่อรุ่นใน `SMITH_MODEL` ใช้แบบเดิม ระบบแปลงให้เอง `doctor` บอกเครดิตที่เหลือ |
 | `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN` | ว่าง | ใส่เมื่อจะเปิดบอท LINE ถ้าว่างจะมีแค่เว็บแอป |
 | `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET` | ว่าง | ใส่พร้อม `PUBLIC_URL` เพื่อบังคับเข้าสู่ระบบด้วย LINE |
 | `WEB_INVITE_CODE` | ว่าง | รหัสเชิญของเว็บแอป ตั้งก่อนเปิดให้เข้าจากอินเทอร์เน็ต |

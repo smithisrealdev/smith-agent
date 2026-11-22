@@ -27,6 +27,9 @@ export const config = {
   lineLoginId: env.LINE_LOGIN_CHANNEL_ID || "", // with its secret and PUBLIC_URL, the web app requires signing in with LINE
   lineLoginSecret: env.LINE_LOGIN_CHANNEL_SECRET || "",
   model: env.SMITH_MODEL || "claude-opus-5-5",
+  // With an OpenRouter key, Claude is reached through OpenRouter's Anthropic-format endpoint (same tools, same
+  // answers, paid from OpenRouter credit). Without one, straight from Anthropic with ANTHROPIC_API_KEY.
+  openrouterKey: env.OPENROUTER_API_KEY || "",
   usdThb: Number(env.USD_THB || 36),
   inviteCode: env.WEB_INVITE_CODE || "", // set it before the web app is reachable from the internet
   quotesPerHour: Number(env.QUOTES_PER_HOUR || 30), // per user; every quote is a paid Claude call

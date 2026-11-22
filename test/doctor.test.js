@@ -35,3 +35,11 @@ test("LINE close to its monthly quota is a warning", async () => {
   const list = await checkSetup({ ANTHROPIC_API_KEY: "k" }, good, SIZES, probes({ line: async () => ({ ok: true, name: "Smith", limit: 300, used: 250 }) }));
   assert.ok(list.some((c) => c.level === "warn" && /250 จาก 300/.test(c.text)));
 });
+
+test("with an OpenRouter key and no Anthropic key, Claude is checked through OpenRouter and low credit is a warning", async () => {
+  const list = await checkSetup({}, { ...good, openrouterKey: "k" }, SIZES, probes({ claude: async () => ({ ok: true, left: 3.2 }) }));
+  const text = formatSetup(list);
+  assert.match(text, /✓ Claude ใช้ได้ ผ่าน OpenRouter[\s\S]*เหลือ \$3.20/);
+  assert.match(text, /! เครดิต OpenRouter เหลือน้อย/);
+  assert.doesNotMatch(text, /ANTHROPIC_API_KEY หรือ/);
+});

@@ -31,7 +31,8 @@ const web = createWeb({
   evidenceDir: config.evidenceDir, inviteCode: config.inviteCode, quotesPerHour: config.quotesPerHour, dailyCostCap: config.dailyCostCap, maxUsers: config.maxUsers, topup: config.topup, alerts,
 });
 
-if (!process.env.ANTHROPIC_API_KEY) console.warn("ANTHROPIC_API_KEY is not set: quotes and jobs will fail unless another Claude credential is configured.");
+if (config.openrouterKey) console.log("Claude: through OpenRouter (OPENROUTER_API_KEY).");
+else if (!process.env.ANTHROPIC_API_KEY) console.warn("Neither ANTHROPIC_API_KEY nor OPENROUTER_API_KEY is set: quotes and jobs will fail.");
 if (!bot) console.log("LINE is off (LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN not set): serving the web app only.");
 console.log(lineLogin ? `Web sign-in: LINE Login (callback ${config.publicUrl}/auth/line/callback)` : "Web sign-in: none, each phone is its own account (set LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET and PUBLIC_URL to require LINE).");
 

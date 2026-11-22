@@ -51,7 +51,7 @@ if (cmd === "doctor") {
   mkdirSync(join(dirname(config.dbPath), "trials"), { recursive: true });
   const out = join(dirname(config.dbPath), "trials", `trial-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.txt`);
   const say = (t) => (console.log(t), appendFileSync(out, `${t}\n`)); // saved as it goes, so a dropped shell loses nothing
-  say(`${tasks.length} งานจริง ใช้เครดิต Anthropic ของคุณ (ประมาณ ฿3–10 ต่องาน ยังไม่เคยวัด) ผลบันทึกที่ ${out}`);
+  say(`${tasks.length} งานจริง รุ่น ${config.model} ใช้เครดิต ${config.openrouterKey ? "OpenRouter" : "Anthropic"} ของคุณ ผลบันทึกที่ ${out}`);
   const rows = [];
   for (const [i, text] of tasks.entries()) {
     rows.push(await runOne(text, { quote, runTask }));

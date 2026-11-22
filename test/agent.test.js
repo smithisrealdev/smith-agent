@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costThb, quote, runTask, stepOf, cleanCodes } from "../src/agent.js";
+import { costThb, quote, runTask, stepOf, cleanCodes, modelId } from "../src/agent.js";
 
 // A stand-in for the SDK client that returns canned responses and records each request.
 function fakeClient(...responses) {
@@ -183,4 +183,12 @@ test("runTask returns the cleaned codes from the report", async () => {
   const report = { model: "claude-opus-5-5", stop_reason: "tool_use", usage: usage(), content: [toolUse("report", { ok: true, answer: "a", summary: "s", sources: [], best_url: "", options: [], codes: [{ code: "SAVE10", shop: "ร้าน A", note: "ลด 10%", url: "https://a.example/promo" }, { code: "bad code", shop: "", note: "", url: "https://a.example" }] })] };
   const r = await runTask({ text: "x", steps: "[]", size: "M" }, fakeClient(report));
   assert.deepEqual(r.codes.map((c) => c.code), ["SAVE10"]);
+});
+
+test("through OpenRouter, models get OpenRouter's names and are still priced from the same table", () => {
+  assert.equal(modelId("claude-opus-5-5", true), "anthropic/claude-opus-5.5");
+  assert.equal(modelId("claude-haiku-5-5", true), "anthropic/claude-haiku-5.5");
+  assert.equal(modelId("anthropic/claude-sonnet-5.5", true), "anthropic/claude-sonnet-5.5", "a full OpenRouter id passes through");
+  assert.equal(modelId("claude-opus-5-5", false), "claude-opus-5-5");
+  assert.equal(costThb("anthropic/claude-sonnet-5.5", { input_tokens: 1e6 }).toFixed(2), costThb("claude-sonnet-5-5", { input_tokens: 1e6 }).toFixed(2));
 });

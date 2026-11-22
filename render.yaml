@@ -23,6 +23,8 @@ services:
       # Trial credit: by default three medium jobs (3 x PRICE_M, ฿27 at ฿9), see founder/pricing.md.
       # - key: START_CREDIT
       #   value: "27"
+      # Using OpenRouter credit instead of an Anthropic key: add OPENROUTER_API_KEY under Environment in the dashboard
+      # (ANTHROPIC_API_KEY can then stay empty). The doctor command shows the credit left.
       # Optional: lets you download a copy of the database from /admin/backup (see the README). Add it under
       # Environment in the Render dashboard instead of here: a secret does not belong in this file.
       # - key: ADMIN_TOKEN

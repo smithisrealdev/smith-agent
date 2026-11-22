@@ -14,10 +14,12 @@ export async function checkSetup(env, config, sizes, probe) {
   const onRender = Boolean(env.RENDER);
 
   // Claude: the one thing every job needs.
-  if (!env.ANTHROPIC_API_KEY) add("bad", "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY ใบเสนอราคาและงานทุกงานจะล้มเหลว");
+  if (!env.ANTHROPIC_API_KEY && !config.openrouterKey) add("bad", "ยังไม่ได้ตั้ง ANTHROPIC_API_KEY หรือ OPENROUTER_API_KEY ใบเสนอราคาและงานทุกงานจะล้มเหลว");
   else {
+    const via = config.openrouterKey ? "ผ่าน OpenRouter" : "ตรงจาก Anthropic";
     const r = await probe.claude();
-    add(r.ok ? "ok" : "bad", r.ok ? `Claude ใช้ได้ (รุ่น ${config.model})` : `เรียก Claude ไม่ได้: ${r.error}`);
+    add(r.ok ? "ok" : "bad", r.ok ? `Claude ใช้ได้ ${via} (รุ่น ${config.model})${r.left !== undefined ? ` · เครดิต OpenRouter เหลือ $${r.left.toFixed(2)}` : ""}` : `เรียก Claude ${via} ไม่ได้: ${r.error}`);
+    if (r.left !== undefined && r.left < 5) add("warn", `เครดิต OpenRouter เหลือน้อย ($${r.left.toFixed(2)}) เติมก่อนหมด ไม่งั้นงานทุกงานจะล้มเหลว`);
   }
 
   // Data: on Render only the disk survives a restart or a deploy.
@@ -72,6 +74,16 @@ export function liveProbes(config, { Anthropic, fetchImpl = fetch, lineLogin }) 
   return {
     lineLogin,
     async claude() {
+      if (config.openrouterKey) {
+        try { // the key works and how much credit is left: OpenRouter's own numbers
+          const r = await fetchImpl("https://openrouter.ai/api/v1/credits", { headers: { Authorization: `Bearer ${config.openrouterKey}` } });
+          if (!r.ok) return { ok: false, error: `${r.status} ${(await r.text()).slice(0, 120)}` };
+          const { data } = await r.json();
+          return { ok: true, left: data.total_credits - data.total_usage };
+        } catch (err) {
+          return { ok: false, error: err.message };
+        }
+      }
       try {
         await new Anthropic().models.retrieve(config.model); // free: checks the key and that this model is open to it
         return { ok: true };
