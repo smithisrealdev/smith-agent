@@ -128,6 +128,7 @@
     ["plane", /ตั๋ว|เที่ยวบิน|เครื่องบิน|สายการบิน|บินไป|ที่พัก|โรงแรม|ทริป|เที่ยว|flight|hotel/i],
     ["food", /ร้านอาหาร|อาหาร|ร้านอร่อย|คาเฟ่|กาแฟ|ของกิน|บุฟเฟ่ต์|ร้านกิน|ร้าน.{0,8}(กิน|อร่อย)/i],
     ["doc", /ข่าว|สรุป|บทความ|อ่าน|รีวิว/i],
+    ["receipt", /ราคาส่ง|ขายส่ง|เข้าร้าน|สต็อก/i],
     ["tag", /ราคา|เทียบ|ซื้อ|ถูก|โค้ด|ส่วนลด|โปร|shopee|lazada/i],
   ];
   const kindOf = (text) => KINDS.find(([, re]) => re.test(text || ""))?.[0] || "sparkle";
@@ -252,11 +253,13 @@
   const terms = legal("เงื่อนไขการใช้งาน", TERMS);
 
   // ---------- home
+  // One example per buyer group in founder/customer.json, all where the saving is worth the fee (founder/pricing.md:
+  // ฿9 does not pay off on an item under ฿100): big items, trips, flights, and stock for a small shop.
   const TEMPLATES = [
-    { label: "หาตั๋วเครื่องบินถูกสุด", icon: "plane", tone: "blu", text: "หาตั๋วเครื่องบินไป [เมือง] วันที่ [วัน] กลับวันที่ [วัน] ราคาถูกสุด รวมกระเป๋า" },
-    { label: "เทียบราคาสินค้า", icon: "tag", tone: "cor", text: "เทียบราคา [ชื่อสินค้า] จาก 3 ร้าน พร้อมลิงก์" },
-    { label: "สรุปข่าววันนี้", icon: "doc", tone: "grn", text: "สรุปข่าวสำคัญวันนี้เรื่อง [หัวข้อ] 5 ข้อ พร้อมแหล่งข่าว" },
-    { label: "หาร้านอาหาร", icon: "food", tone: "yel", text: "หาร้านอาหาร [ประเภท] ย่าน [ที่] งบไม่เกิน [บาท] ต่อคน รีวิวดี" },
+    { label: "เทียบราคาของชิ้นใหญ่", icon: "tag", tone: "cor", text: "เทียบราคา [ชื่อสินค้าและรุ่น] จากหลายร้าน พร้อมลิงก์และโค้ดส่วนลดถ้ามี" },
+    { label: "หาตั๋วเครื่องบิน", icon: "plane", tone: "blu", text: "หาตั๋วเครื่องบินไป [เมือง] วันที่ [วัน] กลับวันที่ [วัน] ราคาถูกสุด รวมกระเป๋า" },
+    { label: "หาที่พักวันหยุดยาว", icon: "plane", tone: "grn", text: "หาที่พักที่ [จังหวัด] วันที่ [วัน] ถึง [วัน] สำหรับ [จำนวน] คน งบไม่เกิน [บาท] ต่อคืน" },
+    { label: "หาราคาส่งเข้าร้าน", icon: "receipt", tone: "yel", text: "หาราคาส่ง [สินค้า] จำนวน [จำนวน] ชิ้น จากหลายร้าน รวมค่าส่ง" },
   ];
   async function home() {
     const [me, list] = await Promise.all([api("GET", "/api/me"), api("GET", "/api/jobs")]);
@@ -555,14 +558,16 @@
   }
 
   // Settings kept on this phone. Both are on unless switched off.
-  const PREFS = [["motion", "sparkle", "ภาพเคลื่อนไหว"], ["pictures", "image", "รูปสินค้าและโลโก้"]];
-  const pref = (key) => (saved.get("prefs") || {})[key] !== false;
+  // [key, icon, label, default]. Big text is for the 50+ and "not at home on the web" buyers in founder/customer.json.
+  const PREFS = [["big", "doc", "ตัวหนังสือใหญ่", false], ["motion", "sparkle", "ภาพเคลื่อนไหว", true], ["pictures", "image", "รูปสินค้าและโลโก้", true]];
+  const pref = (key) => (saved.get("prefs") || {})[key] ?? PREFS.find(([k]) => k === key)?.[3] ?? true;
   const THEMES = [["auto", "ตามระบบ"], ["light", "สว่าง"], ["dark", "มืด"]];
   const theme = () => (saved.get("prefs") || {}).theme || "auto";
   const systemDark = matchMedia("(prefers-color-scheme: dark)");
   function applyPrefs() {
     const root = document.documentElement;
     root.classList.toggle("calm", !pref("motion"));
+    root.classList.toggle("big", pref("big"));
     root.dataset.theme = theme() === "dark" || (theme() === "auto" && systemDark.matches) ? "dark" : "light";
     document.querySelector('meta[name="theme-color"]').content = root.dataset.theme === "dark" ? "#0B1020" : "#FFFFFF";
   }

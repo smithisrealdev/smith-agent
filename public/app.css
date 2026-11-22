@@ -31,6 +31,11 @@ a { color: var(--link); }
 a, button { -webkit-tap-highlight-color: transparent; } /* the press states below replace the grey flash */
 :focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 
+/* Big text: everything on the screen, not only the words, so buttons grow with them. Zooming the children keeps
+   the screen and the sheet at their own height; each child lays out in its zoomed space and still fits the width. */
+html.big #app > :not(.sheet):not(.scrim):not(.clouds), html.big .sheet > * { zoom: 1.18; }
+html.big h1.grow + span { zoom: 0.85; } /* the home mascot stays its usual size beside the bigger heading */
+html.big #app { overflow-x: clip; } /* the bigger mascot's ears reach past the edge; a sideways scroll is worse */
 #app {
   max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh;
   display: flex; flex-direction: column; gap: 14px; isolation: isolate; /* keeps the clouds behind the screen but in front of the page */
